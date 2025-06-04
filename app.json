@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Solana Wallet TCC",
+    "slug": "solana-wallet-novo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "scheme": "solanawallet",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.solanawallettcc",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "phantom-connect",
+            "CFBundleURLSchemes": ["solanawallet", "exp"]
+          }
+        ],
+        "LSApplicationQueriesSchemes": ["phantom"]
+      }
+    },
+    "android": {
+      "package": "com.yourcompany.solanawallettcc",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "solanawallet"
+            },
+            {
+              "scheme": "exp"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "web": {}
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "expo": {
+    "name": "Solana Wallet TCC",
+    "slug": "solana-wallet-novo",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.solanawallettcc",
+      "infoPlist": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "phantom-connect",
+            "CFBundleURLSchemes": [
+              "exp"
+            ]
+          }
+        ],
+        "LSApplicationQueriesSchemes": [
+          "phantom"
+        ]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.yourcompany.solanawallettcc",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "exp"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "scheme": "exp"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.98.2",
+    "bs58": "^6.0.0",
+    "expo-crypto": "~14.1.4",
+    "expo-linking": "~7.1.5",
+    "expo-secure-store": "~14.2.3",
+    "expo-status-bar": "~2.2.3",
+    "expo-web-browser": "~14.1.6",
+    "react-native-get-random-values": "^1.11.0",
+    "tweetnacl": "^1.0.3"
+  }
+}
