@@ -8,12 +8,9 @@ import { PublicKey } from '@solana/web3.js';
 import SolanaService, { SolanaBalance } from '../services/solana/SolanaService';
 
 export interface UseBalanceReturn {
-  // Estado
   balance: SolanaBalance | null;
   isLoading: boolean;
   error: string | null;
-  
-  // Ações
   refreshBalance: () => Promise<void>;
   clearError: () => void;
 }
@@ -25,62 +22,43 @@ export const useBalance = (publicKey: PublicKey | null): UseBalanceReturn => {
 
   const solanaService = SolanaService.getInstance();
 
-  // Limpar erro
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
-
-  // Buscar saldo
-  const fetchBalance = useCallback(async (pubKey: PublicKey) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      console.log('💰 Buscando saldo para:', pubKey.toString().slice(0, 8) + '...');
-      
-      const balanceData = await solanaService.getBalance(pubKey);
-      setBalance(balanceData);
-      
-      console.log('✅ Saldo atualizado:', balanceData.balance, 'SOL');
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao buscar saldo';
-      setError(errorMessage);
-      console.error('❌ Erro ao buscar saldo:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [solanaService]);
-
-  // Função para atualizar saldo manualmente
-  const refreshBalance = useCallback(async () => {
-    if (publicKey) {
-      await fetchBalance(publicKey);
-    }
-  }, [publicKey, fetchBalance]);
-
-  // Buscar saldo quando a chave pública mudar
+  // Carrega saldo quando publicKey muda
   useEffect(() => {
     if (publicKey) {
-      fetchBalance(publicKey);
+      loadBalance();
     } else {
-      // Limpar saldo quando não há chave pública
       setBalance(null);
       setError(null);
     }
-  }, [publicKey, fetchBalance]);
+  }, [publicKey]);
 
-  // Auto-refresh a cada 30 segundos quando conectado
-  useEffect(() => {
-    if (!publicKey || isLoading) return;
+  const loadBalance = useCallback(async () => {
+    if (!publicKey) return;
 
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-refresh do saldo...');
-      fetchBalance(publicKey);
-    }, 30000); // 30 segundos
+    try {
+      setIsLoading(true);
+      setError(null);
 
-    return () => clearInterval(interval);
-  }, [publicKey, isLoading, fetchBalance]);
+      const balanceData = await solanaService.getBalance(publicKey);
+      setBalance(balanceData);
+      
+      console.log('💰 Saldo carregado:', balanceData.balance, 'SOL');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar saldo';
+      console.error('❌ Erro ao carregar saldo:', errorMessage);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [publicKey, solanaService]);
+
+  const refreshBalance = useCallback(async () => {
+    await loadBalance();
+  }, [loadBalance]);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
 
   return {
     balance,
@@ -90,5 +68,3 @@ export const useBalance = (publicKey: PublicKey | null): UseBalanceReturn => {
     clearError
   };
 };
-
-export default useBalance;

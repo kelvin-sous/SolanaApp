@@ -2,20 +2,15 @@
 import 'react-native-get-random-values';
 
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 import PhantomConnectScreen from './src/screens/auth/PhantomConnectScreen';
+import { appStyles } from './src/styles/app.styles';
 
 export default function App() {
   return (
-    <View style={styles.container}>
+    <View style={appStyles.container}>
       <PhantomConnectScreen />
-      <StatusBar style="auto" />
+      <StatusBar style="light" />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});

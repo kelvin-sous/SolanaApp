@@ -1,6 +1,6 @@
 // ========================================
 // src/services/phantom/PhantomService.ts
-// Refatorado com tipos centralizados
+// Refatorado com tipos centralizados - CORRIGIDO PARA iOS
 // ========================================
 
 import * as Linking from 'expo-linking';
@@ -294,21 +294,35 @@ class PhantomService {
       // 3. Configurar promessa de resposta
       const connectionPromise = this.createConnectionPromise(dappKeyPair);
 
-      // 4. Tentar abrir Phantom
+      // 4. Verificar se Phantom está instalado ANTES de tentar abrir (apenas iOS)
+      let isPhantomInstalled = true; // Padrão para Android
+      
+      if (Platform.OS === 'ios') {
+        isPhantomInstalled = await this.checkPhantomInstalled();
+        
+        if (!isPhantomInstalled) {
+          this.clearConnectionData();
+          console.log('📥 Phantom não instalado no iOS, abrindo download...');
+          await this.openDownloadPage();
+          return 'DOWNLOAD_NEEDED';
+        }
+      }
+
+      // 5. Tentar abrir Phantom
       const opened = await this.tryOpenPhantom(connectUrl);
       
       if (!opened) {
         this.clearConnectionData();
-        console.log('📥 Phantom não encontrada, abrindo download...');
+        console.log('📥 Falha ao abrir Phantom, abrindo download...');
         await this.openDownloadPage();
         return 'DOWNLOAD_NEEDED';
       }
 
-      // 5. Aguardar resposta
+      // 6. Aguardar resposta
       console.log('⏳ Aguardando resposta da Phantom...');
       const session = await connectionPromise;
 
-      // 6. Salvar e retornar
+      // 7. Salvar e retornar
       await this.saveSession(session);
       this.currentSession = session;
       
@@ -327,6 +341,42 @@ class PhantomService {
       }
       
       throw error;
+    }
+  }
+
+  /**
+   * Verifica se Phantom está instalado - CORRIGIDO PARA ANDROID
+   */
+  private async checkPhantomInstalled(): Promise<boolean> {
+    try {
+      console.log('🔍 Verificando se Phantom está instalado...');
+      
+      if (Platform.OS === 'ios') {
+        // iOS - verificar múltiplos schemes
+        const schemes = ['phantom://', 'https://phantom.app'];
+        
+        for (const scheme of schemes) {
+          try {
+            const canOpen = await Linking.canOpenURL(scheme);
+            console.log(`📱 iOS - Scheme ${scheme}:`, canOpen);
+            if (canOpen) {
+              return true;
+            }
+          } catch (error) {
+            console.log(`❌ Erro ao verificar scheme ${scheme}:`, error);
+          }
+        }
+        
+        return false;
+      } else {
+        // Android - estratégia diferente: assumir instalado e tentar abrir diretamente
+        // A verificação canOpenURL no Android às vezes retorna false mesmo com app instalado
+        console.log('🤖 Android - Assumindo instalação e tentando abertura direta');
+        return true; // Assumir que está instalado e deixar o tryOpenPhantom decidir
+      }
+    } catch (error) {
+      console.error('❌ Erro ao verificar instalação:', error);
+      return Platform.OS === 'android'; // No Android, tentar abrir mesmo com erro
     }
   }
 
@@ -360,21 +410,150 @@ class PhantomService {
   }
 
   /**
-   * Tenta abrir Phantom
+   * Tenta abrir Phantom - CORRIGIDO PARA iOS
    */
   private async tryOpenPhantom(connectUrl: string): Promise<boolean> {
     console.log('🚀 Tentando abrir Phantom...');
     console.log('🔗 URL completa:', connectUrl);
+    console.log('📱 Plataforma:', Platform.OS);
 
-    // Método 1: Abrir URL HTTPS diretamente (método oficial)
+    if (Platform.OS === 'ios') {
+      return await this.tryOpenPhantomIOS(connectUrl);
+    } else {
+      return await this.tryOpenPhantomAndroid(connectUrl);
+    }
+  }
+
+  /**
+   * Método específico para iOS - CORRIGIDO
+   */
+  private async tryOpenPhantomIOS(connectUrl: string): Promise<boolean> {
+    console.log('🍎 Iniciando processo iOS...');
+
+    // CORREÇÃO PRINCIPAL: Usar Universal Link primeiro no iOS
     try {
-      console.log('🌐 Tentativa 1: Abrindo URL HTTPS oficial do Phantom');
+      console.log('🌐 Tentativa 1 (iOS): Universal Link direto');
+      
+      // Usar Universal Link diretamente sem WebBrowser
+      await Linking.openURL(connectUrl);
+      console.log('✅ Universal Link enviado com sucesso');
+      
+      // Aguardar um momento para ver se o app abre
+      await this.delay(1000);
+      
+      return true;
+      
+    } catch (error) {
+      console.log('❌ Universal Link falhou:', error);
+    }
+
+    // Fallback: Tentar deep link direto
+    try {
+      console.log('👻 Tentativa 2 (iOS): Deep link direto');
+      
+      const url = new URL(connectUrl);
+      const phantomUrl = `phantom://ul/v1/connect?${url.searchParams.toString()}`;
+      
+      console.log('🔗 Deep link URL:', phantomUrl);
+      await Linking.openURL(phantomUrl);
+      console.log('✅ Deep link enviado com sucesso');
+      
+      return true;
+      
+    } catch (error) {
+      console.log('❌ Deep link falhou:', error);
+    }
+
+    // Último recurso: WebBrowser (só se os outros falharem)
+    try {
+      console.log('🌐 Tentativa 3 (iOS): WebBrowser como último recurso');
+      
+      const result = await WebBrowser.openBrowserAsync(connectUrl, {
+        showTitle: false,
+        toolbarColor: '#6b46c1',
+        showInRecents: false,
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        readerMode: false,
+        dismissButtonStyle: 'close'
+      });
+      
+      console.log('📱 WebBrowser resultado:', result);
+      
+      if (result.type === 'cancel') {
+        console.log('❌ Usuário cancelou no WebBrowser');
+        return false;
+      }
+      
+      return true;
+      
+    } catch (error) {
+      console.log('❌ WebBrowser falhou:', error);
+    }
+
+    console.log('❌ Todos os métodos iOS falharam');
+    return false;
+  }
+
+  /**
+   * Método específico para Android - CORRIGIDO PARA EVITAR PLAY STORE
+   */
+  private async tryOpenPhantomAndroid(connectUrl: string): Promise<boolean> {
+    console.log('🤖 Iniciando processo Android...');
+
+    // Método 1: Tentar deep link direto PRIMEIRO
+    try {
+      console.log('👻 Tentativa 1 (Android): Deep link direto');
+      
+      const url = new URL(connectUrl);
+      const phantomUrl = `phantom://ul/v1/connect?${url.searchParams.toString()}`;
+      
+      console.log('🔗 Deep link URL:', phantomUrl);
+      
+      // Verificar se pode abrir o deep link
+      const canOpenDeepLink = await Linking.canOpenURL('phantom://');
+      console.log('📱 Pode abrir phantom://:', canOpenDeepLink);
+      
+      if (canOpenDeepLink) {
+        await Linking.openURL(phantomUrl);
+        console.log('✅ Deep link enviado com sucesso');
+        return true;
+      } else {
+        console.log('❌ Deep link não disponível, tentando Universal Link');
+      }
+      
+    } catch (error) {
+      console.log('❌ Deep link falhou:', error);
+    }
+
+    // Método 2: Universal Link como fallback
+    try {
+      console.log('🌐 Tentativa 2 (Android): Universal Link');
+      
+      // Tentar abrir Universal Link diretamente (sem WebBrowser)
+      await Linking.openURL(connectUrl);
+      console.log('✅ Universal Link enviado diretamente');
+      
+      // Aguardar um momento para ver se abre
+      await this.delay(2000);
+      
+      return true;
+      
+    } catch (error) {
+      console.log('❌ Universal Link direto falhou:', error);
+    }
+
+    // Método 3: WebBrowser apenas se os outros falharem
+    try {
+      console.log('🌐 Tentativa 3 (Android): WebBrowser como último recurso');
       
       const result = await WebBrowser.openBrowserAsync(connectUrl, {
         showTitle: true,
         toolbarColor: '#6b46c1',
         showInRecents: false,
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        // Configurações para melhor integração no Android
+        controlsColor: '#6b46c1',
+        browserPackage: undefined // Deixar o sistema escolher
       });
       
       console.log('📱 WebBrowser resultado:', result);
@@ -391,25 +570,7 @@ class PhantomService {
       console.log('❌ WebBrowser falhou:', error);
     }
 
-    // Método 2: Fallback para deep link (se WebBrowser falhar)
-    try {
-      console.log('👻 Tentativa 2: Deep link phantom:// como fallback');
-      
-      const url = new URL(connectUrl);
-      const phantomUrl = `phantom://ul/v1/connect?${url.searchParams.toString()}`;
-      
-      console.log('🔗 Deep link URL:', phantomUrl);
-      await Linking.openURL(phantomUrl);
-      await this.delay(3000);
-      
-      console.log('✅ Deep link enviado');
-      return true;
-      
-    } catch (error) {
-      console.log('❌ Deep link falhou:', error);
-    }
-
-    console.log('❌ Todos os métodos falharam - Phantom não pode ser aberto');
+    console.log('❌ Todos os métodos Android falharam');
     return false;
   }
 
