@@ -5,3 +5,4 @@
 
 export * from './usePhantom';
 export * from './useBalance';
+export * from './useNFC';

@@ -3,7 +3,7 @@
 // Tela principal para conexão com Phantom Wallet
 // ========================================
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  Pressable,
   Linking,
   Image
 } from 'react-native';
 import { usePhantom } from '../../../hooks/usePhantom';
 import HomeScreen from '../../main/HomeScreen';
-import { COLORS } from '../../../constants/colors';
 import { styles } from './styles';
 
 const PhantomConnectScreen: React.FC = () => {
@@ -29,8 +27,6 @@ const PhantomConnectScreen: React.FC = () => {
     connect,
     disconnect
   } = usePhantom();
-
-  const [copied, setCopied] = useState(false);
 
   const handleConnect = async () => {
     try {
@@ -46,29 +42,6 @@ const PhantomConnectScreen: React.FC = () => {
     }
   };
 
-  const handleDisconnect = async () => {
-    Alert.alert(
-      'Desconectar Wallet',
-      'Tem certeza que deseja desconectar sua wallet?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Desconectar', 
-          style: 'destructive',
-          onPress: disconnect 
-        }
-      ]
-    );
-  };
-
-  const copyAddress = () => {
-    if (publicKey) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      Alert.alert('Endereço copiado!', publicKey.toString().slice(0, 8) + '...');
-    }
-  };
-
   const openPhantomWebsite = () => {
     Linking.openURL('https://phantom.app');
   };
@@ -79,7 +52,7 @@ const PhantomConnectScreen: React.FC = () => {
 
   // Se conectado, mostrar a HomeScreen
   if (isConnected && publicKey) {
-    return <HomeScreen />;
+    return <HomeScreen publicKey={publicKey} disconnect={disconnect} />;
   }
 
   // Renderizar tela quando NÃO conectado (estilo Phantom)

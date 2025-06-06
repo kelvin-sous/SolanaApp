@@ -187,7 +187,7 @@ export const styles = StyleSheet.create({
     backgroundColor: '#373737',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 20,
+    marginBottom: 10,
   },
   welcomeCardTitle: {
     color: '#FFFFFF',
@@ -210,33 +210,42 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingHorizontal: 20,
-    paddingVertical: 30,
+    paddingTop: 10,
+    paddingBottom: 30,
   },
   actionButton: {
     alignItems: 'center',
     flex: 1,
   },
   actionIconContainer: {
-    width: 60,
-    height: 60,
-    backgroundColor: '#4A4A4A',
-    borderRadius: 15,
+    width: 80,
+    height: 80,
+    backgroundColor: '#373737',
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#5A5A5A',
+    borderWidth: 1.5,
+    borderColor: '#2A2A2A',
   },
   actionIcon: {
     color: '#FFFFFF',
     fontSize: 24,
     fontWeight: 'bold',
   },
+  actionIconImage: {
+    width: 50,
+    height: 50,
+  },
   actionLabel: {
-    color: '#FFFFFF',
+    color: '#AB9FF3',
     fontSize: 12,
     fontWeight: '500',
     textAlign: 'center',
+    lineHeight: 14,
+  },
+  actionLabelMultiline: {
+    lineHeight: 14,
   },
   additionalContent: {
     flex: 1,
@@ -346,6 +355,11 @@ export const styles = StyleSheet.create({
   },
   sidebarOptionIconText: {
     fontSize: 20,
+  },
+  sidebarOptionIconImage: {
+    width: 24,
+    height: 24,
+    tintColor: '#FFFFFF',
   },
   sidebarOptionText: {
     color: '#FFFFFF',

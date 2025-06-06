@@ -1,6 +1,6 @@
 // ========================================
 // src/hooks/usePhantom.ts
-// Hook para gerenciar conexão com Phantom
+// Hook para gerenciar conexão com Phantom - CORRIGIDO
 // ========================================
 
 import { useState, useEffect, useCallback } from 'react';

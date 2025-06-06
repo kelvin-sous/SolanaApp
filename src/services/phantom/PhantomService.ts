@@ -1,6 +1,6 @@
 // ========================================
 // src/services/phantom/PhantomService.ts
-// Refatorado com tipos centralizados - CORRIGIDO PARA iOS
+// Refatorado com tipos centralizados - ATUALIZADO
 // ========================================
 
 import * as Linking from 'expo-linking';
@@ -75,6 +75,8 @@ class PhantomService {
       // Verificar se é uma resposta do Phantom baseado no path ou parâmetros
       const isPhantomResponse = 
         parsedUrl.path?.includes('phantom-connect') ||
+        parsedUrl.path?.includes('phantom-transaction') ||
+        parsedUrl.path?.includes('phantom-sign') ||
         this.isPhantomResponse(parsedUrl.queryParams || {});
       
       if (isPhantomResponse) {
@@ -84,6 +86,8 @@ class PhantomService {
           hasNonce: !!(parsedUrl.queryParams?.nonce),
           hasData: !!(parsedUrl.queryParams?.data),
           hasError: !!(parsedUrl.queryParams?.errorCode),
+          hasSignature: !!(parsedUrl.queryParams?.signature),
+          hasTransaction: !!(parsedUrl.queryParams?.transaction),
           allParams: Object.keys(parsedUrl.queryParams || {})
         });
         
@@ -91,8 +95,8 @@ class PhantomService {
       } else {
         console.log('ℹ️ URL não é uma resposta do Phantom');
         console.log('🔍 Esperando por:', {
-          path: 'phantom-connect',
-          params: ['phantom_encryption_public_key', 'nonce', 'data']
+          paths: ['phantom-connect', 'phantom-transaction', 'phantom-sign'],
+          params: ['phantom_encryption_public_key', 'nonce', 'data', 'signature', 'transaction']
         });
       }
     } catch (error) {
@@ -110,22 +114,28 @@ class PhantomService {
    */
   private isPhantomResponse(queryParams: any): boolean {
     const isError = !!(queryParams.errorCode || queryParams.errorMessage);
-    const isSuccess = !!(
+    const isConnectSuccess = !!(
       queryParams.phantom_encryption_public_key && 
       queryParams.nonce && 
       queryParams.data
     );
+    const isTransactionSuccess = !!(queryParams.signature);
+    const isSignSuccess = !!(queryParams.transaction);
     
     console.log('🔍 Validação de resposta:', {
       isError,
-      isSuccess,
+      isConnectSuccess,
+      isTransactionSuccess,
+      isSignSuccess,
       hasPhantomKey: !!queryParams.phantom_encryption_public_key,
       hasNonce: !!queryParams.nonce,
       hasData: !!queryParams.data,
+      hasSignature: !!queryParams.signature,
+      hasTransaction: !!queryParams.transaction,
       errorCode: queryParams.errorCode
     });
     
-    return isError || isSuccess;
+    return isError || isConnectSuccess || isTransactionSuccess || isSignSuccess;
   }
 
   /**
@@ -145,6 +155,22 @@ class PhantomService {
         throw new Error(`Phantom Error: ${queryParams.errorMessage || 'Usuário cancelou ou erro desconhecido'}`);
       }
 
+      // Verificar tipo de resposta
+      if (queryParams.signature) {
+        // Resposta de transação (signAndSendTransaction)
+        console.log('✅ Signature de transação recebida:', queryParams.signature);
+        this.currentConnectionData.resolve(queryParams.signature as any);
+        return;
+      }
+
+      if (queryParams.transaction) {
+        // Resposta de assinatura (signTransaction)
+        console.log('✅ Transação assinada recebida');
+        this.currentConnectionData.resolve(queryParams.transaction as any);
+        return;
+      }
+
+      // Resposta de conexão
       const { phantom_encryption_public_key, nonce, data } = queryParams;
 
       if (!phantom_encryption_public_key || !nonce || !data) {
@@ -275,10 +301,10 @@ class PhantomService {
         publicKeyPreview: dappEncryptionPublicKey.slice(0, 10) + '...'
       });
 
-      // 2. Criar URLs com scheme correto
+      // 2. Criar URLs com scheme correto do config
       console.log('🔗 Criando URLs...');
       const redirectLink = Linking.createURL('phantom-connect', {
-        scheme: 'solanawallet'
+        scheme: APP_CONFIG.DEEP_LINK_SCHEME
       });
       const connectUrl = this.buildConnectUrl({
         app_url: APP_CONFIG.APP_URL,
@@ -636,7 +662,7 @@ class PhantomService {
     cluster?: string;
   }): string {
     // URL base oficial do Phantom
-    const baseUrl = 'https://phantom.app/ul/v1/connect';
+    const baseUrl = PHANTOM_CONFIG.CONNECT_URL;
     
     // Parâmetros conforme documentação
     const urlParams = new URLSearchParams({
@@ -768,7 +794,7 @@ class PhantomService {
    */
   async testDeepLink(): Promise<void> {
     const testUrl = Linking.createURL('phantom-connect', {
-      scheme: 'solanawallet'
+      scheme: APP_CONFIG.DEEP_LINK_SCHEME
     });
     
     console.log('🧪 URL de teste:', testUrl);
