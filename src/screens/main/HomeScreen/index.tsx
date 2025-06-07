@@ -1,6 +1,7 @@
 // ========================================
 // src/screens/main/HomeScreen/index.tsx
 // Tela principal após conexão com Phantom Wallet
+// ATUALIZADA para integrar QRTransferScreen
 // ========================================
 
 import React, { useState, useEffect } from 'react';
@@ -17,7 +18,10 @@ import {
 } from 'react-native';
 import { PublicKey } from '@solana/web3.js';
 import { useBalance } from '../../../hooks/useBalance';
+import { usePhantom } from '../../../hooks/usePhantom';
 import NFCScreen from '../NFCScreen';
+import QRReceiveScreen from '../QRReceiveScreen';
+import QRPayScreen from '../QRPayScreen';
 import { styles } from './styles';
 
 interface HomeScreenProps {
@@ -27,11 +31,14 @@ interface HomeScreenProps {
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
   const { balance, isLoading: balanceLoading } = useBalance(publicKey);
+  const { session } = usePhantom();
   const [walletName, setWalletName] = useState('@usuário');
   const [userIconColor, setUserIconColor] = useState('#AB9FF3');
   const [userInitial, setUserInitial] = useState('U');
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [showNFCScreen, setShowNFCScreen] = useState(false);
+  const [showQRReceiveScreen, setShowQRReceiveScreen] = useState(false);
+  const [showQRPayScreen, setShowQRPayScreen] = useState(false);
 
   const iconColors = ['#AB9FF3', '#3271B8', '#E6474A'];
 
@@ -47,7 +54,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
   }, [publicKey]);
 
   const handleQRScan = () => {
-    Alert.alert('QR Scanner', 'Funcionalidade de escaneamento será implementada');
+    setShowQRPayScreen(true);
   };
 
   const handleNFC = () => {
@@ -55,7 +62,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
   };
 
   const handleReceive = () => {
-    Alert.alert('Receber', 'Funcionalidade de recebimento será implementada');
+    setShowQRReceiveScreen(true);
   };
 
   const handleCommunityBox = () => {
@@ -149,8 +156,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
     ]);
   };
 
+  // Renderização condicional das telas
   if (showNFCScreen) {
     return <NFCScreen onBack={() => setShowNFCScreen(false)} />;
+  }
+
+  if (showQRReceiveScreen) {
+    return <QRReceiveScreen onBack={() => setShowQRReceiveScreen(false)} publicKey={publicKey} />;
+  }
+
+  if (showQRPayScreen) {
+    return <QRPayScreen onBack={() => setShowQRPayScreen(false)} publicKey={publicKey} session={session || undefined} />;
   }
 
   return (

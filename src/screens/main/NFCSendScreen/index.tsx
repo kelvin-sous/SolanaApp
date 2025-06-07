@@ -1,6 +1,6 @@
 // ========================================
 // src/screens/main/NFCSendScreen/index.tsx
-// Tela para enviar via NFC - Adaptada para sua estrutura existente
+// Tela para enviar via NFC
 // ========================================
 
 import React, { useState, useEffect } from 'react';

@@ -1,6 +1,6 @@
 // ========================================
 // src/screens/main/NFCReceiveScreen/index.tsx
-// Tela para receber via NFC - Implementação com funcionalidade real
+// Tela para receber via NFC
 // ========================================
 
 import React, { useState, useEffect } from 'react';

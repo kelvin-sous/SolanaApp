@@ -1,6 +1,6 @@
 // ========================================
 // src/screens/main/NFCScreen/index.tsx
-// Tela de seleção NFC integrada com HomeScreen
+// Tela de seleção NFC
 // ========================================
 
 import React, { useState, useEffect } from 'react';

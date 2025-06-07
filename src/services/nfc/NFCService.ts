@@ -1,15 +1,33 @@
 // ========================================
 // src/services/nfc/NFCService.ts
-// Serviço NFC integrado com SolanaService e Phantom - CORRIGIDO
+// Serviço NFC com verificação de plataforma - SINTAXE CORRIGIDA
 // ========================================
 
-import NfcManager, { NfcTech, Ndef, NfcEvents } from 'react-native-nfc-manager';
 import { Platform, Alert } from 'react-native';
 import { PublicKey } from '@solana/web3.js';
 import SolanaService, { TransactionRequest, TransactionResult } from '../solana/SolanaService';
 import PhantomService from '../phantom/PhantomService';
 import { PhantomSession } from '../../types/phantom';
 import { NFC_CONFIG } from '../../constants/config';
+
+// Import condicional do NFC Manager
+let NfcManager: any = null;
+let NfcTech: any = null;
+let Ndef: any = null;
+let NfcEvents: any = null;
+
+try {
+  if (Platform.OS === 'android' || !__DEV__) {
+    // Só importar NFC no Android ou em builds de produção
+    const nfcModule = require('react-native-nfc-manager');
+    NfcManager = nfcModule.default;
+    NfcTech = nfcModule.NfcTech;
+    Ndef = nfcModule.Ndef;
+    NfcEvents = nfcModule.NfcEvents;
+  }
+} catch (error) {
+  console.log('⚠️ NFC Manager não disponível nesta plataforma');
+}
 
 export interface NFCTransactionData {
   amount: number; // Valor em USD
@@ -45,25 +63,6 @@ export interface NFCStatusCallback {
   onTransactionComplete?: (result: NFCTransactionResult) => void;
 }
 
-// Tipagem para tags NFC
-interface NFCTag {
-  id?: Uint8Array;
-  techTypes?: string[];
-  type?: string;
-  maxSize?: number;
-  isWritable?: boolean;
-  ndefMessage?: NFCRecord[];
-  [key: string]: any;
-}
-
-interface NFCRecord {
-  id?: Uint8Array;
-  tnf?: number;
-  type?: Uint8Array;
-  payload?: Uint8Array;
-  [key: string]: any;
-}
-
 class NFCService {
   private static instance: NFCService;
   private isInitialized = false;
@@ -71,10 +70,12 @@ class NFCService {
   private currentTransactionData: NFCTransactionData | null = null;
   private solanaService: SolanaService;
   private phantomService: PhantomService;
+  private isNFCSupported = false;
 
   private constructor() {
     this.solanaService = SolanaService.getInstance();
     this.phantomService = PhantomService.getInstance();
+    this.isNFCSupported = this.checkNFCSupport();
   }
 
   public static getInstance(): NFCService {
@@ -85,10 +86,31 @@ class NFCService {
   }
 
   /**
+   * Verifica se NFC é suportado na plataforma atual
+   */
+  private checkNFCSupport(): boolean {
+    if (Platform.OS === 'ios' && __DEV__) {
+      console.log('⚠️ NFC não suportado no iOS em desenvolvimento (Expo Go)');
+      return false;
+    }
+    
+    if (!NfcManager) {
+      console.log('⚠️ NFC Manager não está disponível');
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
    * Inicializa o serviço NFC
    */
   async initialize(): Promise<boolean> {
     try {
+      if (!this.isNFCSupported) {
+        throw new Error('NFC não é suportado nesta plataforma/ambiente');
+      }
+
       if (this.isInitialized) {
         return true;
       }
@@ -139,7 +161,9 @@ class NFCService {
           text: 'Configurações', 
           onPress: () => {
             try {
-              NfcManager.goToNfcSetting();
+              if (NfcManager && NfcManager.goToNfcSetting) {
+                NfcManager.goToNfcSetting();
+              }
             } catch (error) {
               console.error('❌ Erro ao abrir configurações NFC:', error);
             }
@@ -147,59 +171,6 @@ class NFCService {
         }
       ]
     );
-  }
-
-  /**
-   * Prepara dados de transação para envio via NFC
-   */
-  async prepareTransactionData(
-    amountUSD: number,
-    senderSession: PhantomSession,
-    receiverPublicKey: string
-  ): Promise<NFCTransactionData> {
-    try {
-      console.log('📋 Preparando dados da transação...');
-
-      // Validar endereço do destinatário
-      if (!SolanaService.isValidAddress(receiverPublicKey)) {
-        throw new Error('Endereço do destinatário inválido');
-      }
-
-      // Converter USD para SOL
-      const amountSOL = await this.solanaService.convertUSDToSOL(amountUSD);
-      const priceData = await this.solanaService.getSOLPrice();
-
-      // Verificar saldo suficiente
-      const balance = await this.solanaService.getBalance(senderSession.publicKey);
-      if (balance.balance < amountSOL) {
-        throw new Error(`Saldo insuficiente. Disponível: ${balance.balance.toFixed(4)} SOL`);
-      }
-
-      // Gerar nonce único
-      const nonce = Date.now().toString() + Math.random().toString(36);
-
-      const transactionData: NFCTransactionData = {
-        amount: amountUSD,
-        amountSOL,
-        senderPublicKey: senderSession.publicKey.toString(),
-        receiverPublicKey,
-        timestamp: Date.now(),
-        nonce,
-        solPrice: priceData.solToUsd
-      };
-
-      console.log('✅ Dados da transação preparados:', {
-        amountUSD,
-        amountSOL: amountSOL.toFixed(6),
-        solPrice: priceData.solToUsd
-      });
-
-      return transactionData;
-
-    } catch (error) {
-      console.error('❌ Erro ao preparar dados da transação:', error);
-      throw error;
-    }
   }
 
   /**
@@ -211,6 +182,12 @@ class NFCService {
     callback: NFCStatusCallback
   ): Promise<void> {
     try {
+      if (!this.isNFCSupported) {
+        // Simular funcionalidade para desenvolvimento iOS
+        this.simulateNFCTransfer(amountUSD, receiverPublicKey, callback, 'send');
+        return;
+      }
+
       await this.initialize();
 
       // Verificar se está conectado com Phantom
@@ -230,14 +207,10 @@ class NFCService {
       );
 
       this.currentTransactionData = transactionData;
-
       callback.onStatusChange('SEARCHING', 'Procurando dispositivo...');
 
-      // Serializar dados da transação
-      const ndefMessage = this.serializeTransactionData(transactionData);
-
       // Configurar NFC para escrita P2P
-      await this.setupNFCWriter(ndefMessage);
+      await this.setupNFCWriter(transactionData);
 
     } catch (error) {
       console.error('❌ Erro ao iniciar envio NFC:', error);
@@ -251,6 +224,12 @@ class NFCService {
    */
   async startReceiving(callback: NFCStatusCallback): Promise<void> {
     try {
+      if (!this.isNFCSupported) {
+        // Simular funcionalidade para desenvolvimento iOS
+        this.simulateNFCTransfer(0, '', callback, 'receive');
+        return;
+      }
+
       await this.initialize();
 
       // Verificar se está conectado com Phantom
@@ -273,17 +252,97 @@ class NFCService {
   }
 
   /**
+   * Simula transferência NFC para desenvolvimento
+   */
+  private simulateNFCTransfer(
+    amountUSD: number,
+    receiverPublicKey: string,
+    callback: NFCStatusCallback,
+    mode: 'send' | 'receive'
+  ): void {
+    console.log('🧪 Simulando transferência NFC para desenvolvimento iOS');
+    
+    callback.onStatusChange('SEARCHING', 'Modo simulação - NFC não disponível no Expo Go');
+    
+    setTimeout(() => {
+      if (mode === 'send') {
+        callback.onStatusChange('SUCCESS', 'Simulação de envio concluída (funciona apenas em builds nativos)');
+      } else {
+        callback.onStatusChange('SUCCESS', 'Simulação de recebimento concluída (funciona apenas em builds nativos)');
+      }
+    }, 2000);
+  }
+
+  /**
+   * Prepara dados de transação para envio via NFC
+   */
+  async prepareTransactionData(
+    amountUSD: number,
+    senderSession: PhantomSession,
+    receiverPublicKey: string
+  ): Promise<NFCTransactionData> {
+    try {
+      console.log('📋 Preparando dados da transação...');
+
+      // Validar endereço do destinatário se fornecido
+      if (receiverPublicKey && receiverPublicKey !== 'DISCOVERY_MODE' && !SolanaService.isValidAddress(receiverPublicKey)) {
+        throw new Error('Endereço do destinatário inválido');
+      }
+
+      // Converter USD para SOL
+      const amountSOL = await this.solanaService.convertUSDToSOL(amountUSD);
+      const priceData = await this.solanaService.getSOLPrice();
+
+      // Verificar saldo suficiente
+      const balance = await this.solanaService.getBalance(senderSession.publicKey);
+      if (balance.balance < amountSOL) {
+        throw new Error(`Saldo insuficiente. Disponível: ${balance.balance.toFixed(4)} SOL`);
+      }
+
+      // Gerar nonce único
+      const nonce = Date.now().toString() + Math.random().toString(36);
+
+      const transactionData: NFCTransactionData = {
+        amount: amountUSD,
+        amountSOL,
+        senderPublicKey: senderSession.publicKey.toString(),
+        receiverPublicKey: receiverPublicKey || senderSession.publicKey.toString(), // Fallback para desenvolvimento
+        timestamp: Date.now(),
+        nonce,
+        solPrice: priceData.solToUsd
+      };
+
+      console.log('✅ Dados da transação preparados:', {
+        amountUSD,
+        amountSOL: amountSOL.toFixed(6),
+        solPrice: priceData.solToUsd
+      });
+
+      return transactionData;
+
+    } catch (error) {
+      console.error('❌ Erro ao preparar dados da transação:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Configura NFC para escrita (modo envio)
    */
-  private async setupNFCWriter(ndefMessage: any[]): Promise<void> {
+  private async setupNFCWriter(transactionData: NFCTransactionData): Promise<void> {
+    if (!this.isNFCSupported || !NfcManager) return;
+
     try {
       console.log('📤 Configurando NFC para envio...');
 
       // Registrar tecnologias NFC
       await NfcManager.requestTechnology([NfcTech.Ndef, NfcTech.NfcA]);
 
+      // Serializar dados da transação
+      const ndefMessage = this.serializeTransactionData(transactionData);
+
       // Listener para detecção de tag/dispositivo
-      NfcManager.setEventListener(NfcEvents.DiscoverTag, async (tag: NFCTag) => {
+      NfcManager.setEventListener(NfcEvents.DiscoverTag, async (tag: any) => {
         try {
           console.log('🏷️ Tag/Dispositivo detectado:', tag);
           
@@ -300,9 +359,6 @@ class NFCService {
           if (this.currentCallback) {
             this.currentCallback.onStatusChange('SUCCESS', 'Dados enviados com sucesso');
           }
-
-          // Aguardar confirmação do receptor
-          await this.waitForReceiverConfirmation();
 
         } catch (error) {
           console.error('❌ Erro ao escrever NFC:', error);
@@ -323,6 +379,8 @@ class NFCService {
    * Configura NFC para leitura (modo recebimento)
    */
   private async setupNFCReader(): Promise<void> {
+    if (!this.isNFCSupported || !NfcManager) return;
+
     try {
       console.log('📥 Configurando NFC para recebimento...');
 
@@ -330,7 +388,7 @@ class NFCService {
       await NfcManager.requestTechnology([NfcTech.Ndef]);
 
       // Listener para detecção de tag/dados
-      NfcManager.setEventListener(NfcEvents.DiscoverTag, async (tag: NFCTag) => {
+      NfcManager.setEventListener(NfcEvents.DiscoverTag, async (tag: any) => {
         try {
           console.log('🏷️ Dados recebidos via NFC:', tag);
           
@@ -376,6 +434,10 @@ class NFCService {
    * Serializa dados da transação para NDEF
    */
   private serializeTransactionData(data: NFCTransactionData): any[] {
+    if (!Ndef) {
+      throw new Error('NDEF não está disponível');
+    }
+
     try {
       const jsonString = JSON.stringify(data);
       const textRecord = Ndef.textRecord(jsonString);
@@ -395,7 +457,11 @@ class NFCService {
   /**
    * Deserializa dados da transação do NDEF
    */
-  private deserializeTransactionData(ndefRecords: NFCRecord[]): NFCTransactionData {
+  private deserializeTransactionData(ndefRecords: any[]): NFCTransactionData {
+    if (!Ndef) {
+      throw new Error('NDEF não está disponível');
+    }
+
     try {
       // Encontrar record de texto
       const textRecord = ndefRecords.find(record => 
@@ -410,7 +476,6 @@ class NFCService {
 
       // Converter payload para string
       const payload = textRecord.payload;
-      // Pular o cabeçalho do texto NDEF (primeiro byte é o status, depois language code)
       const languageCodeLength = payload[0] & 0x3F;
       const textStartIndex = 1 + languageCodeLength;
       const jsonString = String.fromCharCode.apply(null, Array.from(payload.slice(textStartIndex)));
@@ -535,33 +600,19 @@ class NFCService {
   }
 
   /**
-   * Aguarda confirmação do receptor (simulado)
-   */
-  private async waitForReceiverConfirmation(): Promise<void> {
-    console.log('⏳ Aguardando confirmação do receptor...');
-    
-    // Em uma implementação real, isso seria uma comunicação bidirecional via NFC
-    // Por enquanto, simular um delay
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        console.log('✅ Confirmação simulada recebida');
-        resolve();
-      }, 2000);
-    });
-  }
-
-  /**
    * Para a operação NFC atual
    */
   async stop(): Promise<void> {
     try {
       console.log('⏹️ Parando operação NFC...');
       
-      // Limpar listeners
-      NfcManager.setEventListener(NfcEvents.DiscoverTag, null);
-      
-      // Cancelar tecnologia atual
-      await NfcManager.cancelTechnologyRequest();
+      if (this.isNFCSupported && NfcManager) {
+        // Limpar listeners
+        NfcManager.setEventListener(NfcEvents.DiscoverTag, null);
+        
+        // Cancelar tecnologia atual
+        await NfcManager.cancelTechnologyRequest();
+      }
       
       // Limpar estado
       this.currentCallback = null;
@@ -574,25 +625,6 @@ class NFCService {
   }
 
   /**
-   * Limpa recursos e para o NFC manager
-   */
-  async cleanup(): Promise<void> {
-    try {
-      await this.stop();
-      
-      if (this.isInitialized) {
-        // Note: NfcManager não tem método stop() na versão atual
-        // Apenas limpar o estado
-        this.isInitialized = false;
-      }
-      
-      console.log('🧹 Cleanup NFC concluído');
-    } catch (error) {
-      console.error('❌ Erro no cleanup NFC:', error);
-    }
-  }
-
-  /**
    * Verifica se NFC está disponível e habilitado
    */
   async checkNFCStatus(): Promise<{
@@ -601,6 +633,16 @@ class NFCService {
     error?: string;
   }> {
     try {
+      if (!this.isNFCSupported) {
+        return {
+          supported: false,
+          enabled: false,
+          error: Platform.OS === 'ios' ? 
+            'NFC requer um build nativo (não funciona no Expo Go)' : 
+            'NFC não está disponível'
+        };
+      }
+
       const supported = await NfcManager.isSupported();
       if (!supported) {
         return { 
@@ -645,6 +687,25 @@ class NFCService {
     } catch (error) {
       console.error('❌ Erro ao estimar taxa:', error);
       return 0.000005; // Fallback
+    }
+  }
+
+  /**
+   * Limpa recursos
+   */
+  async cleanup(): Promise<void> {
+    try {
+      await this.stop();
+      
+      if (this.isInitialized && this.isNFCSupported) {
+        // Note: NfcManager não tem método stop() na versão atual
+        // Apenas limpar o estado
+        this.isInitialized = false;
+      }
+      
+      console.log('🧹 Cleanup NFC concluído');
+    } catch (error) {
+      console.error('❌ Erro no cleanup NFC:', error);
     }
   }
 }

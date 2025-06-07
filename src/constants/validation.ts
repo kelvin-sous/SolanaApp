@@ -1,6 +1,6 @@
 // ========================================
-// Arquivo de constantes de validação
 // src/constants/validation.ts
+// Constantes e funções de validação
 // ========================================
 
 export const VALIDATION_RULES = {
