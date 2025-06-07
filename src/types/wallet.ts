@@ -1,4 +1,18 @@
+// ========================================
+// src/types/wallet.ts
+// Tipos corrigidos para o wallet
+// ========================================
+
 import { PublicKey } from '@solana/web3.js';
+
+// ✨ INTERFACE PARA SALDO DO SOLANA (CORRIGIDA)
+export interface SolanaBalance {
+  balance: number;
+  lamports: number;
+  decimals: number;
+  uiAmount: number | null;
+  uiAmountString: string;
+}
 
 export interface WalletInfo {
   publicKey: PublicKey;

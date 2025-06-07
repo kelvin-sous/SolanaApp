@@ -1,6 +1,6 @@
 // ========================================
 // src/components/wallet/WalletBalance/index.tsx
-// Componente para exibir saldo da wallet
+// Componente para exibir saldo da wallet - CORRIGIDO
 // ========================================
 
 import React from 'react';
@@ -81,17 +81,34 @@ const WalletBalance: React.FC<WalletBalanceProps> = ({
             </View>
 
             <View style={styles.detailsContainer}>
+              {/* ✅ CORRIGIDO: balance.lamports ao invés de balance.balanceLamports */}
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Lamports:</Text>
                 <Text style={styles.detailValue}>
-                  {balance.balanceLamports.toLocaleString()}
+                  {balance.lamports.toLocaleString()}
                 </Text>
               </View>
               
+              {/* ✅ CORRIGIDO: obter rede do SolanaService ao invés de balance.network */}
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Rede:</Text>
                 <Text style={styles.detailValue}>
-                  {balance.network.toUpperCase()}
+                  {SolanaService.getInstance().getNetwork().toUpperCase()}
+                </Text>
+              </View>
+
+              {/* ✅ NOVO: mostrar informações adicionais do saldo */}
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>UI Amount:</Text>
+                <Text style={styles.detailValue}>
+                  {balance.uiAmountString}
+                </Text>
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Decimais:</Text>
+                <Text style={styles.detailValue}>
+                  {balance.decimals}
                 </Text>
               </View>
             </View>
@@ -106,11 +123,20 @@ const WalletBalance: React.FC<WalletBalanceProps> = ({
                 <TouchableOpacity 
                   style={styles.faucetButton}
                   onPress={() => {
-                    // Implementar redirecionamento para faucet
-                    console.log('🚰 Redirecionar para faucet');
+                    // ✅ MELHORADO: implementar redirecionamento real para faucet
+                    const network = SolanaService.getInstance().getNetwork();
+                    if (network === 'devnet') {
+                      console.log('🚰 Abrindo faucet da devnet para:', publicKey.toString());
+                      // Aqui você pode implementar a abertura do faucet
+                      // Por exemplo: Linking.openURL('https://faucet.solana.com')
+                    } else {
+                      console.log('⚠️ Faucet disponível apenas na devnet');
+                    }
                   }}
                 >
-                  <Text style={styles.faucetButtonText}>🚰 Faucet Devnet</Text>
+                  <Text style={styles.faucetButtonText}>
+                    🚰 Faucet {SolanaService.getInstance().getNetwork().charAt(0).toUpperCase() + SolanaService.getInstance().getNetwork().slice(1)}
+                  </Text>
                 </TouchableOpacity>
               </View>
             )}

@@ -1,9 +1,9 @@
 // ========================================
 // src/screens/main/QRPayScreen/styles.ts
-// Estilos completos da tela de Pagar via QR Code Scanner
+// Estilos completos da tela de Pagar via QR Code Scanner - ATUALIZADO
 // ========================================
 
-import { StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet, ImageStyle, ViewStyle, TextStyle, Dimensions } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -13,26 +13,28 @@ export const styles = StyleSheet.create({
     backgroundColor: '#262728',
     paddingHorizontal: 20,
   },
-  
+
   // Header com ícone QR-Code
   header: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingTop: 60,
     paddingBottom: 20,
+    paddingLeft: 20,
   },
   headerIcon: {
-    width: 40,
-    height: 40,
+    width: 50,
+    height: 50,
     tintColor: '#FFFFFF',
-  },
-  
-  // Título
+  } as ImageStyle,
+
+  // 
   titleContainer: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#444444',
     paddingBottom: 20,
+    paddingHorizontal: 20, 
   },
   title: {
     color: '#FFFFFF',
@@ -40,12 +42,22 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-  
+
+  // ✨ NOVO: INDICADOR DE SALDO
+  balanceIndicator: {
+    color: '#CCCCCC',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    fontWeight: '500',
+    opacity: 0.9,
+  },
+
   // Container de conteúdo
   contentContainer: {
     flex: 1,
   },
-  
+
   // Estado idle - câmera/scanner
   cameraContainer: {
     flex: 1,
@@ -58,79 +70,129 @@ export const styles = StyleSheet.create({
     height: height * 0.4,
     backgroundColor: '#CCCCCC',
     borderRadius: 20,
+    overflow: 'hidden',
     position: 'relative',
+  },
+  cameraWrapper: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000000',
+  },
+  camera: {
+    width: '100%',
+    height: '100%',
+  },
+  cameraPlaceholder: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
+    padding: 20,
+  },
+  scannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   idleText: {
     color: '#666666',
     fontSize: 16,
     textAlign: 'center',
+    marginBottom: 20,
   },
-  
-  // Cantos do viewfinder
+  permissionButton: {
+    backgroundColor: '#AB9FF3',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  permissionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Estilos para scanner de QR Code
+  scannedOverlay: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: 20,
+    margin: 20,
+    borderRadius: 10,
+  },
+  scannedText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
+  scanAgainButton: {
+    backgroundColor: '#AB9FF3',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  scanAgainText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // Cantos do viewfinder para overlay da câmera
   cornerTopLeft: {
     position: 'absolute',
-    top: 20,
-    left: 20,
+    top: '25%',
+    left: '25%',
     width: 30,
     height: 30,
-    borderTopWidth: 6,
-    borderLeftWidth: 6,
-    borderColor: '#000000',
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: '#AB9FF3',
     borderTopLeftRadius: 8,
   },
   cornerTopRight: {
     position: 'absolute',
-    top: 20,
-    right: 20,
+    top: '25%',
+    right: '25%',
     width: 30,
     height: 30,
-    borderTopWidth: 6,
-    borderRightWidth: 6,
-    borderColor: '#000000',
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderColor: '#AB9FF3',
     borderTopRightRadius: 8,
   },
   cornerBottomLeft: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
+    bottom: '25%',
+    left: '25%',
     width: 30,
     height: 30,
-    borderBottomWidth: 6,
-    borderLeftWidth: 6,
-    borderColor: '#000000',
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: '#AB9FF3',
     borderBottomLeftRadius: 8,
   },
   cornerBottomRight: {
     position: 'absolute',
-    bottom: 20,
-    right: 20,
+    bottom: '25%',
+    right: '25%',
     width: 30,
     height: 30,
-    borderBottomWidth: 6,
-    borderRightWidth: 6,
-    borderColor: '#000000',
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderColor: '#AB9FF3',
     borderBottomRightRadius: 8,
   },
-  
+
   // Botões de ação
   actionButtonsContainer: {
     paddingHorizontal: 20,
     paddingVertical: 20,
     gap: 15,
-  },
-  scanButton: {
-    backgroundColor: '#AB9FF3',
-    borderRadius: 25,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  scanButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
   },
   manualButton: {
     backgroundColor: '#4A4A4A',
@@ -143,39 +205,7 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
-  
-  // Estado de scanning
-  scanningContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  scanningText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
-    marginTop: 20,
-  },
-  scanningSubtext: {
-    color: '#CCCCCC',
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  cancelScanButton: {
-    backgroundColor: '#E6474A',
-    borderRadius: 20,
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    marginTop: 30,
-  },
-  cancelScanText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  
+
   // Input manual
   manualInputContainer: {
     backgroundColor: '#373737',
@@ -211,7 +241,7 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+
   // Preview da transação
   previewContainer: {
     flex: 1,
@@ -260,7 +290,7 @@ export const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
-  
+
   // Erros
   errorSection: {
     backgroundColor: '#E6474A',
@@ -279,7 +309,7 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     marginBottom: 4,
   },
-  
+
   // Ações do preview
   previewActions: {
     flexDirection: 'row',
@@ -314,7 +344,7 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+
   // Container inferior com botão voltar
   bottomContainer: {
     paddingBottom: 30,

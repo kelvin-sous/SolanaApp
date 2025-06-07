@@ -1,11 +1,11 @@
 // ========================================
 // src/services/nfc/NFCService.ts
-// Serviço NFC com verificação de plataforma - SINTAXE CORRIGIDA
+// Serviço NFC com verificação de plataforma - CORRIGIDO
 // ========================================
 
 import { Platform, Alert } from 'react-native';
 import { PublicKey } from '@solana/web3.js';
-import SolanaService, { TransactionRequest, TransactionResult } from '../solana/SolanaService';
+import SolanaService, { SolanaTransactionRequest, SolanaTransactionResult } from '../solana/SolanaService';
 import PhantomService from '../phantom/PhantomService';
 import { PhantomSession } from '../../types/phantom';
 import { NFC_CONFIG } from '../../constants/config';
@@ -309,13 +309,15 @@ class NFCService {
         receiverPublicKey: receiverPublicKey || senderSession.publicKey.toString(), // Fallback para desenvolvimento
         timestamp: Date.now(),
         nonce,
-        solPrice: priceData.solToUsd
+        // ✅ CORRIGIDO: usar .usd ao invés de .solToUsd
+        solPrice: priceData.usd
       };
 
       console.log('✅ Dados da transação preparados:', {
         amountUSD,
         amountSOL: amountSOL.toFixed(6),
-        solPrice: priceData.solToUsd
+        // ✅ CORRIGIDO: usar .usd ao invés de .solToUsd
+        solPrice: priceData.usd
       });
 
       return transactionData;
@@ -560,12 +562,14 @@ class NFCService {
 
       this.currentCallback.onStatusChange('PROCESSING_TRANSACTION', 'Processando transação...');
 
-      // Preparar request de transação
-      const transactionRequest: TransactionRequest = {
+      // ✅ CORRIGIDO: usar SolanaTransactionRequest e corrigir propriedades
+      const transactionRequest: SolanaTransactionRequest = {
         fromPublicKey: this.currentTransactionData.senderPublicKey,
         toPublicKey: this.currentTransactionData.receiverPublicKey,
-        amountSOL: this.currentTransactionData.amountSOL,
-        amountUSD: this.currentTransactionData.amount
+        amount: this.currentTransactionData.amountSOL, // ✅ Propriedade principal
+        amountSOL: this.currentTransactionData.amountSOL, // ✅ Propriedade opcional adicional
+        memo: `NFC Transfer - ${this.currentTransactionData.nonce}`,
+        timestamp: Date.now()
       };
 
       // Executar transação via Solana Service
@@ -575,7 +579,7 @@ class NFCService {
       if (this.currentCallback.onTransactionComplete) {
         const nfcResult: NFCTransactionResult = {
           success: result.success,
-          transactionData: this.currentTransactionData,
+          transactionData: this.currentTransactionData || undefined,
           signature: result.signature,
           error: result.error
         };

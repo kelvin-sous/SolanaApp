@@ -98,11 +98,23 @@ export const styles = StyleSheet.create({
     height: 24,
     tintColor: '#FFFFFF', // Para deixar o ícone branco
   },
+  
+  // ✨ ESTILOS DO SALDO MELHORADOS
   balanceContainer: {
     backgroundColor: '#373737',
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   balanceContent: {
     marginBottom: 8,
@@ -122,14 +134,25 @@ export const styles = StyleSheet.create({
     height: 20,
     marginRight: 8,
   },
+  
+  // ✨ BOTÃO DE REFRESH MELHORADO
   refreshButton: {
-    padding: 4,
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 36,
+    minHeight: 36,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   refreshIcon: {
     width: 20,
     height: 20,
     tintColor: '#FFFFFF',
   },
+  
   balanceHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -161,14 +184,30 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 1,
   },
+  
+  // ✨ ÁREA DO SALDO COM MELHORIAS
   balanceAmount: {
-    marginTop: 4,
+    marginTop: 8,
+    alignItems: 'center',
   },
   balanceValue: {
     color: '#FFFFFF',
     fontSize: 24,
     fontWeight: 'bold',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
+  
+  // ✨ NOVO: ESTILO PARA MENSAGEM DE ERRO
+  errorText: {
+    color: '#FF6B6B',
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+    fontWeight: '400',
+    fontStyle: 'italic',
+  },
+  
   welcomeSection: {
     marginTop: 10,
   },

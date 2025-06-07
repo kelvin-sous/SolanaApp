@@ -1,7 +1,6 @@
 // ========================================
 // src/screens/main/HomeScreen/index.tsx
-// Tela principal após conexão com Phantom Wallet
-// ATUALIZADA para integrar QRTransferScreen
+// Tela principal com card de criptomoedas
 // ========================================
 
 import React, { useState, useEffect } from 'react';
@@ -14,7 +13,8 @@ import {
   ScrollView,
   Image,
   Modal,
-  Pressable
+  Pressable,
+  ActivityIndicator
 } from 'react-native';
 import { PublicKey } from '@solana/web3.js';
 import { useBalance } from '../../../hooks/useBalance';
@@ -22,6 +22,7 @@ import { usePhantom } from '../../../hooks/usePhantom';
 import NFCScreen from '../NFCScreen';
 import QRReceiveScreen from '../QRReceiveScreen';
 import QRPayScreen from '../QRPayScreen';
+import CryptoBalanceCard from '../../../components/CryptoBalanceCard';
 import { styles } from './styles';
 
 interface HomeScreenProps {
@@ -30,7 +31,7 @@ interface HomeScreenProps {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
-  const { balance, isLoading: balanceLoading } = useBalance(publicKey);
+  const { balance, isLoading: balanceLoading, error, refreshBalance } = useBalance(publicKey);
   const { session } = usePhantom();
   const [walletName, setWalletName] = useState('@usuário');
   const [userIconColor, setUserIconColor] = useState('#AB9FF3');
@@ -39,6 +40,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
   const [showNFCScreen, setShowNFCScreen] = useState(false);
   const [showQRReceiveScreen, setShowQRReceiveScreen] = useState(false);
   const [showQRPayScreen, setShowQRPayScreen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const iconColors = ['#AB9FF3', '#3271B8', '#E6474A'];
 
@@ -150,10 +152,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
     return 0;
   };
 
-  const handleBalanceRefresh = () => {
-    Alert.alert('Saldo', 'Atualizando saldo...', [
-      { text: 'OK', style: 'default' }
-    ]);
+  // ✨ FUNÇÃO PARA ATUALIZAR SALDO (SEM ALERTS)
+  const handleBalanceRefresh = async () => {
+    try {
+      setIsRefreshing(true);
+      console.log('🔄 Atualizando saldo...');
+      
+      await refreshBalance();
+      
+      console.log('✅ Saldo atualizado com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao atualizar saldo:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   // Renderização condicional das telas
@@ -204,7 +216,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
         <TouchableOpacity 
           style={styles.balanceContainer}
           onPress={handleBalanceRefresh}
-          disabled={balanceLoading}
+          disabled={balanceLoading || isRefreshing}
           activeOpacity={0.8}
         >
           <View style={styles.balanceContent}>
@@ -218,22 +230,33 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
                 <Text style={styles.currencySymbol}>$</Text>
                 <Text style={styles.balanceLabel}>SALDO</Text>
               </View>
+              
+              {/* ✨ BOTÃO DE REFRESH MELHORADO */}
               <TouchableOpacity 
                 style={styles.refreshButton}
                 onPress={handleBalanceRefresh}
-                disabled={balanceLoading}
+                disabled={balanceLoading || isRefreshing}
               >
-                <Image 
-                  source={require('../../../../assets/icons/refreshBranco.png')} 
-                  style={styles.refreshIcon}
-                  resizeMode="contain"
-                />
+                {(balanceLoading || isRefreshing) ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Image 
+                    source={require('../../../../assets/icons/refreshBranco.png')} 
+                    style={styles.refreshIcon}
+                    resizeMode="contain"
+                  />
+                )}
               </TouchableOpacity>
             </View>
           </View>
+          
+          {/* ✨ INDICADOR DE STATUS DO SALDO (SEM TEXTO DE ERRO) */}
           <View style={styles.balanceAmount}>
             <Text style={styles.balanceValue}>
-              {balanceLoading ? 'Carregando...' : `$ ${formatBalance(balance)} SOL`}
+              {balanceLoading || isRefreshing 
+                ? 'Atualizando...' 
+                : `$ ${formatBalance(balance)} SOL`
+              }
             </Text>
           </View>
         </TouchableOpacity>
@@ -309,6 +332,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
             <Text style={styles.actionLabel}>Caixa{'\n'}Comunitário</Text>
           </TouchableOpacity>
         </View>
+
+        {/* ✨ NOVO: CARD DE CRIPTOMOEDAS */}
+        <CryptoBalanceCard publicKey={publicKey} />
 
         <View style={styles.additionalContent}>
         </View>

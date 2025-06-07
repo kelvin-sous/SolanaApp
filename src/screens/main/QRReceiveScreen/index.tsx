@@ -11,11 +11,12 @@ import {
   StatusBar,
   Image,
   Alert,
-  TextInput,
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  Clipboard
 } from 'react-native';
 import { PublicKey } from '@solana/web3.js';
+import QRCode from 'react-native-qrcode-svg';
 import QRCodeService from '../../../services/qr/QRCodeService';
 import { styles } from './styles';
 
@@ -25,12 +26,8 @@ interface QRReceiveScreenProps {
 }
 
 const QRReceiveScreen: React.FC<QRReceiveScreenProps> = ({ onBack, publicKey }) => {
-  const [amountUSD, setAmountUSD] = useState('');
-  const [label, setLabel] = useState('');
-  const [message, setMessage] = useState('');
   const [qrData, setQrData] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showInputs, setShowInputs] = useState(true);
 
   const qrService = QRCodeService.getInstance();
 
@@ -53,45 +50,23 @@ const QRReceiveScreen: React.FC<QRReceiveScreenProps> = ({ onBack, publicKey }) 
     }
   };
 
-  const generateCustomQR = async () => {
-    try {
-      setIsGenerating(true);
-
-      const amountValue = parseFloat(amountUSD) || undefined;
-      
-      const qrString = await qrService.generateReceiveQRData({
-        publicKey: publicKey.toString(),
-        amountUSD: amountValue,
-        label: label || undefined,
-        message: message || undefined
-      });
-
-      setQrData(qrString);
-      setShowInputs(false);
-      
-      console.log('✅ QR Code personalizado gerado');
-      
-    } catch (error) {
-      console.error('❌ Erro ao gerar QR Code:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      Alert.alert('Erro', `Não foi possível gerar QR Code: ${errorMessage}`);
-    } finally {
-      setIsGenerating(false);
+  const copyQRData = async () => {
+    if (qrData) {
+      try {
+        await Clipboard.setString(qrData);
+        Alert.alert('Sucesso', 'Dados do QR Code copiados para área de transferência');
+      } catch (error) {
+        Alert.alert('Erro', 'Não foi possível copiar os dados');
+      }
     }
   };
 
-  const resetToSimple = () => {
-    setAmountUSD('');
-    setLabel('');
-    setMessage('');
-    setShowInputs(true);
-    generateSimpleQR();
-  };
-
-  const copyQRData = () => {
-    if (qrData) {
-      // Em uma implementação real, usar Clipboard
-      Alert.alert('QR Code', 'Dados copiados para área de transferência');
+  const shareAddress = async () => {
+    try {
+      await Clipboard.setString(publicKey.toString());
+      Alert.alert('Endereço Copiado', 'Endereço da carteira copiado para área de transferência');
+    } catch (error) {
+      Alert.alert('Erro', 'Não foi possível copiar o endereço');
     }
   };
 
@@ -113,100 +88,59 @@ const QRReceiveScreen: React.FC<QRReceiveScreenProps> = ({ onBack, publicKey }) 
         <Text style={styles.title}>Receber</Text>
       </View>
 
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollContainer} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Container do QR Code */}
         <View style={styles.qrCodeContainer}>
-          <View style={styles.qrCodePlaceholder}>
-            {isGenerating ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#262728" />
-                <Text style={styles.loadingText}>Gerando QR Code...</Text>
-              </View>
-            ) : qrData ? (
-              <View style={styles.qrCodeContent}>
-                <Text style={styles.qrCodeData}>{qrData}</Text>
-                <TouchableOpacity style={styles.copyButton} onPress={copyQRData}>
-                  <Text style={styles.copyButtonText}>Copiar</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
+          {isGenerating ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#FFFFFF" />
+              <Text style={styles.loadingText}>Gerando QR Code...</Text>
+            </View>
+          ) : qrData ? (
+            <View style={styles.qrCodeContent}>
+              <QRCode
+                value={qrData}
+                size={220}
+                color="#FFFFFF"
+                backgroundColor="transparent"
+                logoSize={30}
+                logoBackgroundColor="transparent"
+              />
+              <TouchableOpacity style={styles.copyButton} onPress={copyQRData}>
+                <Text style={styles.copyButtonText}>Copiar Dados</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.placeholderContainer}>
               <Text style={styles.qrPlaceholderText}>QR Code será exibido aqui</Text>
-            )}
-          </View>
+            </View>
+          )}
         </View>
 
         {/* Informações da carteira */}
         <View style={styles.walletInfo}>
           <Text style={styles.walletLabel}>Endereço da Carteira:</Text>
-          <Text style={styles.walletAddress}>
-            {publicKey.toString().slice(0, 8)}...{publicKey.toString().slice(-8)}
-          </Text>
+          <TouchableOpacity onPress={shareAddress} activeOpacity={0.7}>
+            <Text style={styles.walletAddress}>
+              {publicKey.toString().slice(0, 8)}...{publicKey.toString().slice(-8)}
+            </Text>
+            <Text style={styles.tapToCopy}>Toque para copiar endereço completo</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Formulário de personalização */}
-        {showInputs && (
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputSectionTitle}>Personalizar QR Code (Opcional)</Text>
-            
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Valor (USD):</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Ex: 10.50"
-                placeholderTextColor="#888888"
-                value={amountUSD}
-                onChangeText={setAmountUSD}
-                keyboardType="decimal-pad"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Descrição:</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="Ex: Pagamento de serviço"
-                placeholderTextColor="#888888"
-                value={label}
-                onChangeText={setLabel}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Mensagem:</Text>
-              <TextInput
-                style={[styles.textInput, styles.textInputMultiline]}
-                placeholder="Mensagem adicional (opcional)"
-                placeholderTextColor="#888888"
-                value={message}
-                onChangeText={setMessage}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
-
-            <TouchableOpacity 
-              style={styles.generateButton}
-              onPress={generateCustomQR}
-              disabled={isGenerating}
-            >
-              <Text style={styles.generateButtonText}>
-                {isGenerating ? 'Gerando...' : 'Gerar QR Personalizado'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Botão para voltar ao QR simples */}
-        {!showInputs && (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={styles.resetButton}
-              onPress={resetToSimple}
-            >
-              <Text style={styles.resetButtonText}>Voltar ao QR Simples</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* Informações adicionais */}
+        <View style={styles.infoCard}>
+          <Text style={styles.infoTitle}>Como receber pagamentos:</Text>
+          <Text style={styles.infoText}>
+            • Compartilhe este QR Code com quem vai enviar{'\n'}
+            • O pagador irá escanear e digitar o valor{'\n'}
+            • Você receberá a confirmação da transação
+          </Text>
+        </View>
       </ScrollView>
 
       {/* Botão Voltar */}
