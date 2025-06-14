@@ -12,12 +12,12 @@ import { PublicKey, Transaction } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import bs58 from 'bs58';
 
-import { 
-  PhantomSession, 
-  PhantomConnectResponse, 
-  PhantomConnectionData, 
+import {
+  PhantomSession,
+  PhantomConnectResponse,
+  PhantomConnectionData,
   PhantomConnectionResult,
-  PhantomEventData 
+  PhantomEventData
 } from '../../types/phantom';
 import { PHANTOM_CONFIG, APP_CONFIG } from '../../constants/config';
 import SolanaService from '../solana/SolanaService';
@@ -94,12 +94,12 @@ class PhantomService {
    */
   private setupLinkingListener(): void {
     console.log('🔗 Configurando listener de deep links...');
-    
+
     Linking.addEventListener('url', (event) => {
       console.log('📨 URL recebida:', event.url);
       this.handleIncomingURL(event.url);
     });
-    
+
     // Verificar se o app foi aberto por uma URL
     Linking.getInitialURL().then((url) => {
       if (url) {
@@ -115,7 +115,7 @@ class PhantomService {
   private handleIncomingURL(url: string): void {
     try {
       console.log('📨 URL completa recebida:', url);
-      
+
       const parsedUrl = Linking.parse(url);
       console.log('📋 URL parseada:', {
         hostname: parsedUrl.hostname,
@@ -123,14 +123,14 @@ class PhantomService {
         queryParams: Object.keys(parsedUrl.queryParams || {}),
         scheme: parsedUrl.scheme
       });
-      
+
       // Verificar se é uma resposta do Phantom baseado no path ou parâmetros
-      const isPhantomResponse = 
+      const isPhantomResponse =
         parsedUrl.path?.includes('phantom-connect') ||
         parsedUrl.path?.includes('phantom-transaction') ||
         parsedUrl.path?.includes('phantom-sign') ||
         this.isPhantomResponse(parsedUrl.queryParams || {});
-      
+
       if (isPhantomResponse) {
         console.log('👻 Resposta do Phantom detectada!');
         console.log('🔍 Parâmetros encontrados:', {
@@ -142,7 +142,7 @@ class PhantomService {
           hasTransaction: !!(parsedUrl.queryParams?.transaction),
           allParams: Object.keys(parsedUrl.queryParams || {})
         });
-        
+
         this.processPhantomResponse(parsedUrl.queryParams || {});
       } else {
         console.log('ℹ️ URL não é uma resposta do Phantom');
@@ -172,14 +172,14 @@ class PhantomService {
   private isPhantomResponse(queryParams: any): boolean {
     const isError = !!(queryParams.errorCode || queryParams.errorMessage);
     const isConnectSuccess = !!(
-      queryParams.phantom_encryption_public_key && 
-      queryParams.nonce && 
+      queryParams.phantom_encryption_public_key &&
+      queryParams.nonce &&
       queryParams.data
     );
     const isTransactionSuccess = !!(queryParams.signature);
     const isSignSuccess = !!(queryParams.transaction);
     const isEncryptedResponse = !!(queryParams.nonce && queryParams.data);
-    
+
     console.log('🔍 Validação de resposta:', {
       isError,
       isConnectSuccess,
@@ -193,7 +193,7 @@ class PhantomService {
       hasTransaction: !!queryParams.transaction,
       errorCode: queryParams.errorCode
     });
-    
+
     return isError || isConnectSuccess || isTransactionSuccess || isSignSuccess || isEncryptedResponse;
   }
 
@@ -203,32 +203,32 @@ class PhantomService {
   private async processPhantomResponse(queryParams: PhantomEventData): Promise<void> {
     try {
       console.log('🔄 Processando resposta...');
-      
+
       // Verificar se houve erro
       if (queryParams.errorCode) {
         const errorMessage = `Phantom Error: ${queryParams.errorMessage || 'Usuário cancelou ou erro desconhecido'}`;
-        
+
         // Rejeitar conexão se pendente
         if (this.currentConnectionData) {
           this.currentConnectionData.reject(new Error(errorMessage));
           this.clearConnectionData();
           return;
         }
-        
+
         // Rejeitar transação se pendente
         if (this.currentTransactionData) {
           this.currentTransactionData.reject(new Error(errorMessage));
           this.clearTransactionData();
           return;
         }
-        
+
         throw new Error(errorMessage);
       }
 
       // ========================================
       // PROCESSAR RESPOSTAS DE TRANSAÇÃO (COMPLETO)
       // ========================================
-      
+
       // Verificar se é resposta de transação com signature direta
       if (queryParams.signature && this.currentTransactionData) {
         console.log('✅ Signature de transação recebida:', queryParams.signature);
@@ -249,7 +249,7 @@ class PhantomService {
       if (queryParams.nonce && queryParams.data && this.currentTransactionData) {
         try {
           const decryptedResponse = await this.decryptResponseOfficial(queryParams.nonce, queryParams.data);
-          
+
           if (decryptedResponse.signature) {
             console.log('✅ Signature descriptografada:', decryptedResponse.signature);
             this.currentTransactionData.resolve(decryptedResponse.signature);
@@ -259,12 +259,12 @@ class PhantomService {
           } else {
             throw new Error('Resposta inválida - sem signature nem transaction');
           }
-          
+
           this.clearTransactionData();
           return;
         } catch (error) {
           console.error('❌ Erro ao descriptografar resposta de transação:', error);
-          
+
           // FALLBACK: Tentar método original de descriptografia
           try {
             const legacyResponse = await this.decryptTransactionResponse({
@@ -287,7 +287,7 @@ class PhantomService {
       // ========================================
       // PROCESSAR RESPOSTAS DE CONEXÃO (CÓDIGO ORIGINAL)
       // ========================================
-      
+
       if (!this.currentConnectionData) {
         console.log('⚠️ Resposta recebida, mas nenhuma conexão pendente');
         return;
@@ -311,15 +311,15 @@ class PhantomService {
       console.log('✅ Sessão criada com sucesso!');
       this.currentConnectionData.resolve(session);
       this.clearConnectionData();
-      
+
     } catch (error) {
       console.error('❌ Erro ao processar resposta:', error);
-      
+
       if (this.currentConnectionData) {
         this.currentConnectionData.reject(error instanceof Error ? error : new Error('Erro desconhecido'));
         this.clearConnectionData();
       }
-      
+
       if (this.currentTransactionData) {
         this.currentTransactionData.reject(error instanceof Error ? error : new Error('Erro desconhecido'));
         this.clearTransactionData();
@@ -336,7 +336,7 @@ class PhantomService {
    */
   async executeTransaction(transaction: Transaction): Promise<string> {
     console.log('🚀 Executando transação com método híbrido melhorado...');
-    
+
     if (!this.currentSession) {
       throw new Error('Phantom não conectado. Conecte primeiro.');
     }
@@ -372,7 +372,7 @@ class PhantomService {
   private async signAndSendTransactionOfficial(transaction: Transaction): Promise<string> {
     try {
       console.log('📋 Iniciando SignAndSendTransaction oficial...');
-      
+
       if (!this.currentSession) {
         throw new Error('Sessão não encontrada');
       }
@@ -382,7 +382,7 @@ class PhantomService {
         verifySignatures: false
       });
       const transactionBase58 = bs58.encode(serializedTransaction);
-      
+
       console.log('📦 Transação serializada:', transactionBase58.length, 'chars');
 
       // Payload EXATO da documentação
@@ -414,12 +414,12 @@ class PhantomService {
       });
 
       const finalUrl = `${baseUrl}?${urlParams.toString()}`;
-      
+
       console.log('🔧 URL oficial construída (tamanho):', finalUrl.length, 'chars');
 
       const transactionPromise = this.createTransactionPromise();
       const opened = await this.tryOpenPhantom(finalUrl);
-      
+
       if (!opened) {
         throw new Error('Não foi possível abrir Phantom');
       }
@@ -440,7 +440,7 @@ class PhantomService {
   private async signTransactionOfficial(transaction: Transaction): Promise<string> {
     try {
       console.log('🖊️ Iniciando SignTransaction oficial...');
-      
+
       if (!this.currentSession) {
         throw new Error('Sessão não encontrada');
       }
@@ -478,21 +478,21 @@ class PhantomService {
 
       const transactionPromise = this.createTransactionPromise();
       const opened = await this.tryOpenPhantom(finalUrl);
-      
+
       if (!opened) {
         throw new Error('Não foi possível abrir Phantom');
       }
 
       console.log('⏳ Aguardando assinatura oficial...');
-      
+
       // Aguardar transação assinada
       const signedTransactionBase58 = await transactionPromise;
-      
+
       // Enviar via RPC manualmente
       console.log('📤 Enviando transação assinada via RPC...');
       const solanaService = SolanaService.getInstance();
       const connection = solanaService.getConnection();
-      
+
       const signedTransactionBytes = bs58.decode(signedTransactionBase58);
       const signature = await connection.sendRawTransaction(signedTransactionBytes, {
         skipPreflight: false,
@@ -501,7 +501,7 @@ class PhantomService {
       });
 
       console.log('📤 Transação enviada:', signature);
-      
+
       // Confirmar transação
       await connection.confirmTransaction(signature, 'confirmed');
       console.log('✅ Transação confirmada:', signature);
@@ -521,7 +521,7 @@ class PhantomService {
   async signAndSendTransaction(transaction: Transaction): Promise<string> {
     try {
       console.log('🚀 Iniciando signAndSendTransaction legacy melhorado...');
-      
+
       if (!this.currentSession) {
         throw new Error('Sessão Phantom não encontrada. Conecte primeiro.');
       }
@@ -532,7 +532,7 @@ class PhantomService {
         verifySignatures: false
       });
       const transactionBase58 = bs58.encode(serializedTransaction);
-      
+
       console.log('📦 Transação serializada (tamanho):', transactionBase58.length, 'chars');
 
       // 🔥 TENTAR MÉTODO SIMPLES PRIMEIRO (sem criptografia)
@@ -564,7 +564,7 @@ class PhantomService {
   async signTransaction(transaction: Transaction): Promise<string> {
     try {
       console.log('🚀 Iniciando signTransaction legacy (apenas assinatura)...');
-      
+
       if (!this.currentSession) {
         throw new Error('Sessão Phantom não encontrada. Conecte primeiro.');
       }
@@ -589,20 +589,20 @@ class PhantomService {
 
       const transactionPromise = this.createTransactionPromise();
       const opened = await this.tryOpenPhantom(signUrl);
-      
+
       if (!opened) {
         throw new Error('Não foi possível abrir Phantom para assinatura');
       }
 
       console.log('⏳ Aguardando assinatura legacy...');
-      
+
       // Para signTransaction, o retorno é a transação assinada, não a signature
       const signedTransactionBase58 = await transactionPromise;
-      
+
       // Enviar a transação assinada via Solana RPC
       const solanaService = SolanaService.getInstance();
       const connection = solanaService.getConnection();
-      
+
       const signedTransactionBytes = bs58.decode(signedTransactionBase58);
       const signature = await connection.sendRawTransaction(signedTransactionBytes, {
         skipPreflight: false,
@@ -610,7 +610,7 @@ class PhantomService {
       });
 
       console.log('📤 Transação enviada manualmente (legacy):', signature);
-      
+
       // Confirmar transação
       await connection.confirmTransaction(signature, 'confirmed');
       console.log('✅ Transação confirmada (legacy):', signature);
@@ -646,7 +646,7 @@ class PhantomService {
 
     // Abrir Phantom
     const opened = await this.tryOpenPhantom(simpleUrl);
-    
+
     if (!opened) {
       throw new Error('Não foi possível abrir Phantom');
     }
@@ -689,7 +689,7 @@ class PhantomService {
 
     const transactionPromise = this.createTransactionPromise();
     const opened = await this.tryOpenPhantom(transactionUrl);
-    
+
     if (!opened) {
       throw new Error('Não foi possível abrir Phantom para transação criptografada');
     }
@@ -718,8 +718,8 @@ class PhantomService {
       console.log('📋 Payload JSON oficial:', payloadJson);
 
       const encryptedData = nacl.box.after(
-        payloadBytes, 
-        nonce, 
+        payloadBytes,
+        nonce,
         this.currentSession.sharedSecret
       );
 
@@ -753,11 +753,11 @@ class PhantomService {
       console.log('🔓 Descriptografando resposta oficial...');
 
       const decryptedData = nacl.box.open.after(
-        encryptedData, 
-        nonceBytes, 
+        encryptedData,
+        nonceBytes,
         this.currentSession.sharedSecret
       );
-      
+
       if (!decryptedData) {
         throw new Error('Falha ao descriptografar resposta oficial');
       }
@@ -765,7 +765,7 @@ class PhantomService {
       const textDecoder = new TextDecoder();
       const decryptedJson = textDecoder.decode(decryptedData);
       const response = JSON.parse(decryptedJson);
-      
+
       console.log('✅ Resposta oficial descriptografada:', Object.keys(response));
       return response;
 
@@ -779,7 +779,7 @@ class PhantomService {
    * MANTIDO: Criptografa payload da transação - LEGACY
    */
   private async encryptTransactionPayload(
-    payload: PhantomTransactionPayload, 
+    payload: PhantomTransactionPayload,
     nonce: Uint8Array
   ): Promise<string> {
     try {
@@ -796,8 +796,8 @@ class PhantomService {
 
       // Criptografar usando sharedSecret
       const encryptedData = nacl.box.after(
-        payloadBytes, 
-        nonce, 
+        payloadBytes,
+        nonce,
         this.currentSession.sharedSecret
       );
 
@@ -822,7 +822,7 @@ class PhantomService {
    */
   private buildSignAndSendUrl(params: PhantomSendTransactionParams): string {
     const baseUrl = 'https://phantom.app/ul/v1/signAndSendTransaction';
-    
+
     const urlParams = new URLSearchParams({
       dapp_encryption_public_key: params.dapp_encryption_public_key,
       nonce: params.nonce,
@@ -831,7 +831,7 @@ class PhantomService {
     });
 
     const finalUrl = `${baseUrl}?${urlParams.toString()}`;
-    
+
     console.log('🔧 Construindo URL de transação legacy:');
     console.log('  📍 Base URL:', baseUrl);
     console.log('  🔑 Dapp Key:', params.dapp_encryption_public_key.slice(0, 10) + '...');
@@ -879,11 +879,11 @@ class PhantomService {
 
       // Descriptografar usando sharedSecret
       const decryptedData = nacl.box.open.after(
-        encryptedData, 
-        nonceBytes, 
+        encryptedData,
+        nonceBytes,
         this.currentSession.sharedSecret
       );
-      
+
       if (!decryptedData) {
         throw new Error('Falha ao descriptografar resposta de transação');
       }
@@ -892,7 +892,7 @@ class PhantomService {
       const textDecoder = new TextDecoder();
       const decryptedJson = textDecoder.decode(decryptedData);
       const response: PhantomTransactionResponse = JSON.parse(decryptedJson);
-      
+
       console.log('✅ Resposta legacy descriptografada:', {
         hasSignature: !!response.signature,
         signaturePreview: response.signature?.slice(0, 8) + '...'
@@ -952,7 +952,7 @@ class PhantomService {
 
       // Descriptografar usando nacl.box.open.after
       const decryptedData = nacl.box.open.after(encryptedData, nonceBytes, sharedSecret);
-      
+
       if (!decryptedData) {
         throw new Error('Falha ao descriptografar dados - chave ou dados inválidos');
       }
@@ -963,9 +963,9 @@ class PhantomService {
       const textDecoder = new TextDecoder();
       const decryptedJson = textDecoder.decode(decryptedData);
       console.log('📋 JSON descriptografado (tamanho):', decryptedJson.length, 'chars');
-      
+
       const connectData: PhantomConnectResponse = JSON.parse(decryptedJson);
-      
+
       console.log('✅ Dados de conexão parseados:', {
         hasPublicKey: !!connectData.public_key,
         hasSession: !!connectData.session,
@@ -1020,6 +1020,18 @@ class PhantomService {
       const secretKey = await this.generateSecureRandomBytes(32);
       const dappKeyPair = nacl.box.keyPair.fromSecretKey(secretKey);
       const dappEncryptionPublicKey = bs58.encode(dappKeyPair.publicKey);
+
+      // --- INÍCIO: LOGS DE DEPURAÇÃO PARA CHAVES DE CRIPTOGRAFIA (LINHA PROBLEMÁTICA REMOVIDA) ---
+      console.log('--- Depuração de Chaves Dapp ---');
+      console.log('dappEncryptionPublicKey (Base58):', dappEncryptionPublicKey);
+      console.log('dappEncryptionPublicKey (Length):', dappEncryptionPublicKey.length);
+      // LINHA ABAIXO REMOVIDA PARA RESOLVER O ERRO 'Buffer'
+      // console.log('dappEncryptionPublicKey (Decoded Hex):', Buffer.from(bs58.decode(dappEncryptionPublicKey)).toString('hex'));
+      console.log('dappKeyPair.publicKey (Raw Uint8Array):', dappKeyPair.publicKey);
+      console.log('dappKeyPair.secretKey (Raw Uint8Array):', dappKeyPair.secretKey);
+      console.log('--- Fim Depuração de Chaves ---');
+      // --- FIM: LOGS DE DEPURAÇÃO PARA CHAVES DE CRIPTOGRAFIA ---
+
       console.log('✅ Chaves geradas:', {
         publicKeyLength: dappEncryptionPublicKey.length,
         publicKeyPreview: dappEncryptionPublicKey.slice(0, 10) + '...'
@@ -1046,10 +1058,10 @@ class PhantomService {
 
       // 4. Verificar se Phantom está instalado ANTES de tentar abrir (apenas iOS)
       let isPhantomInstalled = true; // Padrão para Android
-      
+
       if (Platform.OS === 'ios') {
         isPhantomInstalled = await this.checkPhantomInstalled();
-        
+
         if (!isPhantomInstalled) {
           this.clearConnectionData();
           console.log('📥 Phantom não instalado no iOS, abrindo download...');
@@ -1060,7 +1072,7 @@ class PhantomService {
 
       // 5. Tentar abrir Phantom
       const opened = await this.tryOpenPhantom(connectUrl);
-      
+
       if (!opened) {
         this.clearConnectionData();
         console.log('📥 Falha ao abrir Phantom, abrindo download...');
@@ -1075,21 +1087,21 @@ class PhantomService {
       // 7. Salvar e retornar
       await this.saveSession(session);
       this.currentSession = session;
-      
+
       console.log('✅ Conectado com sucesso!');
       return session;
 
     } catch (error) {
       console.error('❌ Erro na conexão:', error);
       this.clearConnectionData();
-      
+
       // Se for erro de cancelamento/timeout, oferecer download
       if (this.shouldOfferDownload(error)) {
         console.log('📥 Oferecendo download devido ao erro...');
         await this.openDownloadPage();
         return 'DOWNLOAD_NEEDED';
       }
-      
+
       throw error;
     }
   }
@@ -1100,11 +1112,11 @@ class PhantomService {
   private async checkPhantomInstalled(): Promise<boolean> {
     try {
       console.log('🔍 Verificando se Phantom está instalado...');
-      
+
       if (Platform.OS === 'ios') {
         // iOS - verificar múltiplos schemes
         const schemes = ['phantom://', 'https://phantom.app'];
-        
+
         for (const scheme of schemes) {
           try {
             const canOpen = await Linking.canOpenURL(scheme);
@@ -1116,7 +1128,7 @@ class PhantomService {
             console.log(`❌ Erro ao verificar scheme ${scheme}:`, error);
           }
         }
-        
+
         return false;
       } else {
         // Android - estratégia diferente: assumir instalado e tentar abrir diretamente
@@ -1153,9 +1165,9 @@ class PhantomService {
    */
   private shouldOfferDownload(error: any): boolean {
     const errorMessage = error?.message || '';
-    return errorMessage.includes('cancelou') || 
-           errorMessage.includes('Timeout') ||
-           errorMessage.includes('não encontrada');
+    return errorMessage.includes('cancelou') ||
+      errorMessage.includes('Timeout') ||
+      errorMessage.includes('não encontrada');
   }
 
   /**
@@ -1211,14 +1223,14 @@ class PhantomService {
         readerMode: false,
         dismissButtonStyle: 'close'
       });
-      
+
       console.log('📱 WebBrowser resultado:', result);
-      
+
       if (result.type === 'cancel') {
         console.log('❌ Usuário cancelou no WebBrowser');
         return false;
       }
-      
+
       return true;
     } catch (error) {
       console.log('❌ WebBrowser falhou:', error);
@@ -1239,10 +1251,10 @@ class PhantomService {
       const url = new URL(connectUrl);
       const phantomUrl = `phantom://ul/v1/connect?${url.searchParams.toString()}`;
       console.log('🔗 Deep link URL:', phantomUrl);
-      
+
       const canOpenDeepLink = await Linking.canOpenURL('phantom://');
       console.log('📱 Pode abrir phantom://:', canOpenDeepLink);
-      
+
       if (canOpenDeepLink) {
         await Linking.openURL(phantomUrl);
         console.log('✅ Deep link enviado com sucesso');
@@ -1274,14 +1286,14 @@ class PhantomService {
         controlsColor: '#6b46c1',
         browserPackage: undefined
       });
-      
+
       console.log('📱 WebBrowser resultado:', result);
-      
+
       if (result.type === 'cancel') {
         console.log('❌ Usuário cancelou no WebBrowser');
         return false;
       }
-      
+
       console.log('✅ Phantom aberto via WebBrowser');
       return true;
     } catch (error) {
@@ -1354,7 +1366,7 @@ class PhantomService {
     cluster?: string;
   }): string {
     const baseUrl = PHANTOM_CONFIG.CONNECT_URL;
-    
+
     const urlParams = new URLSearchParams({
       app_url: params.app_url,
       dapp_encryption_public_key: params.dapp_encryption_public_key,
@@ -1363,7 +1375,7 @@ class PhantomService {
     });
 
     const finalUrl = `${baseUrl}?${urlParams.toString()}`;
-    
+
     console.log('🔧 Construindo URL de conexão:');
     console.log('  📍 Base URL:', baseUrl);
     console.log('  🌐 App URL:', params.app_url);
@@ -1394,7 +1406,7 @@ class PhantomService {
         PHANTOM_CONFIG.SESSION_STORAGE_KEY,
         JSON.stringify(sessionData)
       );
-      
+
       console.log('💾 Sessão salva com sucesso');
     } catch (error) {
       console.error('❌ Erro ao salvar sessão:', error);
@@ -1433,7 +1445,7 @@ class PhantomService {
       this.currentSession = session;
       console.log('📱 Sessão carregada:', session.publicKey.toString().slice(0, 8) + '...');
       return session;
-      
+
     } catch (error) {
       console.error('❌ Erro ao carregar sessão:', error);
       await SecureStore.deleteItemAsync(PHANTOM_CONFIG.SESSION_STORAGE_KEY);
@@ -1488,10 +1500,10 @@ class PhantomService {
     const testUrl = Linking.createURL('phantom-connect', {
       scheme: APP_CONFIG.DEEP_LINK_SCHEME
     });
-    
+
     console.log('🧪 URL de teste:', testUrl);
     console.log('🧪 Timestamp:', Date.now());
-    
+
     try {
       await Linking.openURL(testUrl);
       console.log('✅ Deep link teste enviado');

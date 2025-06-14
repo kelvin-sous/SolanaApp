@@ -2,6 +2,9 @@
 // App.tsx - Com verificação de plataforma para iOS
 // ========================================
 
+import { Buffer } from 'buffer';
+global.Buffer = Buffer;
+
 // Polyfill necessário para Solana Web3.js
 import 'react-native-get-random-values';
 
@@ -33,7 +36,7 @@ export default function App() {
           🚧 Funcionalidades Limitadas
         </Text>
         <Text style={{ color: '#AAAAAA', fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
-          {Platform.OS === 'ios' 
+          {Platform.OS === 'ios'
             ? 'Para usar todas as funcionalidades NFC no iOS, você precisa criar um development build.\n\nEste é um limite do Expo Go, não do seu código.'
             : 'Algumas dependências não puderam ser carregadas. Verifique a instalação.'}
         </Text>
@@ -61,12 +64,12 @@ const MainApp: React.FC = () => {
 
   // Renderizar HomeScreen quando conectado
   return (
-    <View style={appStyles.container}>
-      <StatusBar style="light" />
-      <HomeScreen 
-        publicKey={publicKey} 
-        disconnect={disconnect}
-      />
-    </View>
+  <View style={appStyles.container}>
+    <StatusBar style="light" />
+    <HomeScreen
+      publicKey={publicKey}
+      disconnect={disconnect}
+    />
+  </View>
   );
 };

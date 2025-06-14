@@ -1,20 +1,20 @@
 // ========================================
 // src/constants/config.ts
-// Configurações do aplicativo - Atualizado para NFC
+// Configurações do aplicativo - Atualizado para NFC e Deep Links
 // ========================================
 
 export const APP_CONFIG = {
   NAME: 'Solana Wallet TCC',
   VERSION: '1.0.0',
-  APP_URL: 'https://solana-wallet-tcc.app',
-  DEEP_LINK_SCHEME: 'exp',
+  APP_URL: 'https://phantomnfc.wallet', // <--- MUDANÇA AQUI!
+  DEEP_LINK_SCHEME: 'solanawallet',
   TIMEOUT_DURATION: 120000, // 2 minutos
-  
+
   // URLs de redirecionamento para diferentes operações
   REDIRECT_URLS: {
-    PHANTOM_CONNECT: 'exp://phantom-connect',
-    PHANTOM_TRANSACTION: 'exp://phantom-transaction', 
-    PHANTOM_SIGN: 'exp://phantom-sign',
+    PHANTOM_CONNECT: 'phantom-connect',
+    PHANTOM_TRANSACTION: 'phantom-transaction',
+    PHANTOM_SIGN: 'phantom-sign',
   },
 } as const;
 
@@ -44,13 +44,13 @@ export const NFC_CONFIG = {
   TRANSACTION_TIMEOUT: 300000, // 5 minutos
   RETRY_ATTEMPTS: 3,
   CONNECTION_TIMEOUT: 30000, // 30 segundos para conectar
-  
+
   // Tipos MIME para diferentes dados
   MIME_TYPES: {
     TRANSACTION_DATA: 'application/solana-transaction',
     TEXT_PLAIN: 'text/plain',
   },
-  
+
   // Códigos de erro NFC
   ERROR_CODES: {
     NOT_SUPPORTED: 'NFC_NOT_SUPPORTED',
@@ -66,21 +66,21 @@ export const NFC_CONFIG = {
 export const SOLANA_CONFIG = {
   NETWORK: 'devnet' as const,
   COMMITMENT: 'confirmed' as const,
-  
+
   // Endpoints RPC
   RPC_ENDPOINTS: {
     mainnet: 'https://api.mainnet-beta.solana.com',
-    testnet: 'https://api.testnet.solana.com', 
+    testnet: 'https://api.testnet.solana.com',
     devnet: 'https://api.devnet.solana.com',
   },
-  
+
   // Configurações de transação
   TRANSACTION: {
     DEFAULT_FEE: 0.000005, // SOL
     MAX_RETRIES: 3,
     CONFIRMATION_TIMEOUT: 60000, // 1 minuto
   },
-  
+
   // Explorador de blockchain
   EXPLORER_URLS: {
     mainnet: 'https://explorer.solana.com',
@@ -96,7 +96,7 @@ export const PRICE_CONFIG = {
     SOL_TO_USD: 180.50,
     UPDATE_INTERVAL: 300000, // 5 minutos
   },
-  
+
   // APIs de preço para mainnet (futuro)
   PRICE_APIS: {
     COINGECKO: 'https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd',
@@ -109,7 +109,7 @@ export const UI_CONFIG = {
   ANIMATION_DURATION: 300,
   TOAST_DURATION: 3000,
   LOADING_TIMEOUT: 10000,
-  
+
   // Cores do tema
   COLORS: {
     PRIMARY: '#AB9FF3',
