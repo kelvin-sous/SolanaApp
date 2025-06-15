@@ -28,7 +28,7 @@
       "infoPlist": {
         "CFBundleURLTypes": [
           {
-            "CFBundleURLName": "phantom-connect",
+            "CFBundleURLName": "solanawallet-deeplink",
             "CFBundleURLSchemes": [
               "solanawallet"
             ]
@@ -37,7 +37,10 @@
         "LSApplicationQueriesSchemes": [
           "phantom"
         ]
-      }
+      },
+      "associatedDomains": [
+        "applinks:kelvin-sous.github.io"
+      ]
     },
     "android": {
       "adaptiveIcon": {

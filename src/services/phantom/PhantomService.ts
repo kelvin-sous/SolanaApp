@@ -70,6 +70,7 @@ interface SignTransactionResponse {
 
 class PhantomService {
   private static instance: PhantomService;
+  private debugDeepLinkCount = 0;
   private currentSession: PhantomSession | null = null;
   private currentConnectionData: PhantomConnectionData | null = null;
   private currentTransactionData: {
@@ -94,46 +95,63 @@ class PhantomService {
    */
   private setupLinkingListener(): void {
     console.log('🔗 Configurando listener de deep links...');
+    console.log('📱 Scheme esperado:', APP_CONFIG.DEEP_LINK_SCHEME);
 
     Linking.addEventListener('url', (event) => {
-      console.log('📨 URL recebida:', event.url);
+      this.debugDeepLinkCount++;
+      console.log(`📨 URL recebida (${this.debugDeepLinkCount}):`, event.url);
+      console.log('🕐 Horário:', new Date().toLocaleTimeString());
       this.handleIncomingURL(event.url);
     });
 
     // Verificar se o app foi aberto por uma URL
     Linking.getInitialURL().then((url) => {
       if (url) {
-        console.log('🚀 App aberto por URL:', url);
+        console.log('🚀 App aberto por URL inicial:', url);
         this.handleIncomingURL(url);
+      } else {
+        console.log('ℹ️ App aberto normalmente (sem URL inicial)');
       }
     });
+
+    console.log('✅ Listener configurado com sucesso');
   }
 
   /**
-   * Processa URLs recebidas
+   * 🔥 ATUALIZADA: Processa URLs recebidas com debug completo
    */
   private handleIncomingURL(url: string): void {
-    try {
-      console.log('📨 URL completa recebida:', url);
+    console.log('=== 📨 CORREÇÃO: DEEP LINK RECEBIDO ===');
+    console.log('URL completa:', url);
+    console.log('Timestamp:', new Date().toLocaleTimeString());
+    console.log('Deep link count:', this.debugDeepLinkCount);
+    console.log('Estado atual:', {
+      hasConnectionData: !!this.currentConnectionData,
+      hasTransactionData: !!this.currentTransactionData,
+      isConnected: this.isConnected()
+    });
+    console.log('=======================================');
 
+    try {
       const parsedUrl = Linking.parse(url);
-      console.log('📋 URL parseada:', {
+      console.log('📋 CORREÇÃO: URL parseada:', {
         hostname: parsedUrl.hostname,
         path: parsedUrl.path,
         queryParams: Object.keys(parsedUrl.queryParams || {}),
         scheme: parsedUrl.scheme
       });
 
-      // Verificar se é uma resposta do Phantom baseado no path ou parâmetros
+      // 🔥 CORREÇÃO: Verificação mais ampla
       const isPhantomResponse =
+        url.includes('phantom') ||
         parsedUrl.path?.includes('phantom-connect') ||
         parsedUrl.path?.includes('phantom-transaction') ||
         parsedUrl.path?.includes('phantom-sign') ||
         this.isPhantomResponse(parsedUrl.queryParams || {});
 
       if (isPhantomResponse) {
-        console.log('👻 Resposta do Phantom detectada!');
-        console.log('🔍 Parâmetros encontrados:', {
+        console.log('👻 CORREÇÃO: Resposta do Phantom detectada!');
+        console.log('🔍 CORREÇÃO: Parâmetros encontrados:', {
           hasPhantomKey: !!(parsedUrl.queryParams?.phantom_encryption_public_key),
           hasNonce: !!(parsedUrl.queryParams?.nonce),
           hasData: !!(parsedUrl.queryParams?.data),
@@ -145,22 +163,27 @@ class PhantomService {
 
         this.processPhantomResponse(parsedUrl.queryParams || {});
       } else {
-        console.log('ℹ️ URL não é uma resposta do Phantom');
-        console.log('🔍 Esperando por:', {
+        console.log('ℹ️ CORREÇÃO: URL não é uma resposta do Phantom');
+        console.log('🔍 CORREÇÃO: URL recebida mas não identificada como Phantom');
+
+        // 🔥 CORREÇÃO: Log da URL completa para debug
+        console.log('🔍 CORREÇÃO: URL completa para análise:', url);
+        console.log('🔍 CORREÇÃO: Esperando padrões:', {
           paths: ['phantom-connect', 'phantom-transaction', 'phantom-sign'],
-          params: ['phantom_encryption_public_key', 'nonce', 'data', 'signature', 'transaction']
+          params: ['phantom_encryption_public_key', 'nonce', 'data', 'signature', 'transaction'],
+          schemes: ['solanawallet', 'phantom']
         });
       }
     } catch (error) {
-      console.error('❌ Erro ao processar URL:', error);
+      console.error('❌ CORREÇÃO: Erro ao processar URL:', error);
       if (this.currentConnectionData) {
         const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        this.currentConnectionData.reject(new Error(`Erro ao processar resposta da Phantom: ${errorMessage}`));
+        this.currentConnectionData.reject(new Error(`CORREÇÃO: Erro ao processar resposta da Phantom: ${errorMessage}`));
         this.clearConnectionData();
       }
       if (this.currentTransactionData) {
         const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-        this.currentTransactionData.reject(new Error(`Erro ao processar resposta da Phantom: ${errorMessage}`));
+        this.currentTransactionData.reject(new Error(`CORREÇÃO: Erro ao processar resposta da Phantom: ${errorMessage}`));
         this.clearTransactionData();
       }
     }
@@ -847,16 +870,33 @@ class PhantomService {
    */
   private createTransactionPromise(): Promise<string> {
     return new Promise<string>((resolve, reject) => {
+      console.log('⏳ Criando promessa de transação...');
+      console.log('⏰ Timeout configurado para: 3 minutos');
+
       const timeout = setTimeout(() => {
+        console.log('⏰ TIMEOUT DE TRANSAÇÃO ATINGIDO!');
+        console.log('🕐 Tempo esperado: 3 minutos');
+        console.log('📱 Deep links recebidos durante espera:', this.debugDeepLinkCount || 0);
+
         reject(new Error('Timeout: transação não completada em 3 minutos'));
         this.clearTransactionData();
       }, 3 * 60 * 1000); // 3 minutos
 
       this.currentTransactionData = {
-        resolve,
-        reject,
+        resolve: (signature) => {
+          console.log('✅ TRANSAÇÃO RESOLVIDA COM SUCESSO!');
+          console.log('📝 Signature:', signature);
+          resolve(signature);
+        },
+        reject: (error) => {
+          console.log('❌ TRANSAÇÃO REJEITADA!');
+          console.log('🔍 Erro:', error.message);
+          reject(error);
+        },
         timeout
       };
+
+      console.log('✅ Promessa de transação criada, aguardando resposta...');
     });
   }
 
@@ -1012,6 +1052,9 @@ class PhantomService {
     try {
       console.log('🚀 Iniciando conexão com Phantom...');
 
+      // 🔥 NOVO: Teste a APP_URL primeiro
+      await this.testAppUrl(APP_CONFIG.APP_URL);
+
       // Limpar conexão anterior
       this.clearConnectionData();
 
@@ -1021,16 +1064,12 @@ class PhantomService {
       const dappKeyPair = nacl.box.keyPair.fromSecretKey(secretKey);
       const dappEncryptionPublicKey = bs58.encode(dappKeyPair.publicKey);
 
-      // --- INÍCIO: LOGS DE DEPURAÇÃO PARA CHAVES DE CRIPTOGRAFIA (LINHA PROBLEMÁTICA REMOVIDA) ---
       console.log('--- Depuração de Chaves Dapp ---');
       console.log('dappEncryptionPublicKey (Base58):', dappEncryptionPublicKey);
       console.log('dappEncryptionPublicKey (Length):', dappEncryptionPublicKey.length);
-      // LINHA ABAIXO REMOVIDA PARA RESOLVER O ERRO 'Buffer'
-      // console.log('dappEncryptionPublicKey (Decoded Hex):', Buffer.from(bs58.decode(dappEncryptionPublicKey)).toString('hex'));
       console.log('dappKeyPair.publicKey (Raw Uint8Array):', dappKeyPair.publicKey);
       console.log('dappKeyPair.secretKey (Raw Uint8Array):', dappKeyPair.secretKey);
       console.log('--- Fim Depuração de Chaves ---');
-      // --- FIM: LOGS DE DEPURAÇÃO PARA CHAVES DE CRIPTOGRAFIA ---
 
       console.log('✅ Chaves geradas:', {
         publicKeyLength: dappEncryptionPublicKey.length,
@@ -1106,6 +1145,29 @@ class PhantomService {
     }
   }
 
+  private async testAppUrl(appUrl: string): Promise<void> {
+    console.log('🌐 Testando APP_URL:', appUrl);
+
+    try {
+      const response = await fetch(appUrl, {
+        method: 'HEAD',
+        mode: 'no-cors' // Para evitar problemas de CORS
+      });
+      console.log('✅ APP_URL acessível');
+      console.log('📊 Response type:', response.type);
+    } catch (error) {
+      console.log('❌ Erro ao acessar APP_URL:', error);
+
+      // Tentar com GET normal:
+      try {
+        const response2 = await fetch(appUrl);
+        console.log('✅ APP_URL acessível via GET:', response2.status);
+      } catch (error2) {
+        console.log('❌ APP_URL totalmente inacessível:', error2);
+      }
+    }
+  }
+
   /**
    * MANTIDO: Verifica se Phantom está instalado - CORRIGIDO PARA ANDROID
    */
@@ -1146,17 +1208,55 @@ class PhantomService {
    */
   private createConnectionPromise(dappKeyPair: nacl.BoxKeyPair): Promise<PhantomSession> {
     return new Promise<PhantomSession>((resolve, reject) => {
+      console.log('⏳ CORREÇÃO: Criando promessa de conexão...');
+      console.log('⏰ CORREÇÃO: Timeout configurado para: 300 segundos (5 min)');
+
+      // 🔥 CORREÇÃO: Timeout maior para debug
       const timeout = setTimeout(() => {
-        reject(new Error('Timeout: conexão não completada em 2 minutos'));
+        console.log('⏰ CORREÇÃO: TIMEOUT DE CONEXÃO ATINGIDO!');
+        console.log('🕐 CORREÇÃO: Tempo esperado: 300 segundos');
+        console.log('📱 CORREÇÃO: Deep links recebidos:', this.debugDeepLinkCount || 0);
+        console.log('🔍 CORREÇÃO: Estado final:', {
+          hasConnectionData: !!this.currentConnectionData,
+          totalDeepLinks: this.debugDeepLinkCount
+        });
+
+        reject(new Error('Timeout: conexão não completada em 5 minutos'));
         this.clearConnectionData();
-      }, APP_CONFIG.TIMEOUT_DURATION);
+      }, 300000); // 5 minutos para debug
+
+      // 🔥 CORREÇÃO: Logs a cada 30 segundos
+      const intervalLogs = setInterval(() => {
+        console.log('🔍 CORREÇÃO: Status intermediário:', {
+          tempoEsperando: new Date().toLocaleTimeString(),
+          deepLinksRecebidos: this.debugDeepLinkCount,
+          ainda_esperando: !!this.currentConnectionData
+        });
+      }, 30000);
 
       this.currentConnectionData = {
         dappKeyPair,
-        resolve,
-        reject,
+        resolve: (session) => {
+          console.log('✅ CORREÇÃO: CONEXÃO RESOLVIDA COM SUCESSO!');
+          console.log('📝 CORREÇÃO: Sessão criada:', {
+            publicKey: session.publicKey.toString().slice(0, 8) + '...',
+            hasSession: !!session.session,
+            totalDeepLinksRecebidos: this.debugDeepLinkCount
+          });
+          clearInterval(intervalLogs);
+          resolve(session);
+        },
+        reject: (error) => {
+          console.log('❌ CORREÇÃO: CONEXÃO REJEITADA!');
+          console.log('🔍 CORREÇÃO: Erro:', error.message);
+          console.log('📊 CORREÇÃO: Deep links recebidos até falha:', this.debugDeepLinkCount);
+          clearInterval(intervalLogs);
+          reject(error);
+        },
         timeout
       };
+
+      console.log('✅ CORREÇÃO: Promessa criada, aguardando resposta...');
     });
   }
 
@@ -1244,63 +1344,51 @@ class PhantomService {
    * MANTIDO: Método específico para Android
    */
   private async tryOpenPhantomAndroid(connectUrl: string): Promise<boolean> {
-    console.log('🤖 Iniciando processo Android...');
+    console.log('🤖 CORREÇÃO: Iniciando processo Android simplificado...');
+    console.log('📏 URL length:', connectUrl.length);
 
+    // 🔥 ESTRATÉGIA 1: Universal Link PRIMEIRO (mais confiável)
     try {
-      console.log('👻 Tentativa 1 (Android): Deep link direto');
+      console.log('🌐 CORREÇÃO: Tentativa Universal Link direto');
+      console.log('🔗 URL Universal:', connectUrl);
+
+      await Linking.openURL(connectUrl);
+      console.log('✅ CORREÇÃO: Universal Link enviado com sucesso');
+
+      // 🔥 AGUARDAR 15 segundos para debug
+      console.log('⏳ CORREÇÃO: Aguardando 15 segundos para resposta...');
+      setTimeout(() => {
+        console.log('🔍 CORREÇÃO: Status após 15s:', {
+          connectionDataExists: !!this.currentConnectionData,
+          deepLinksRecebidos: this.debugDeepLinkCount,
+          phantomJaRetornou: this.debugDeepLinkCount > 0
+        });
+      }, 15000);
+
+      return true;
+    } catch (error) {
+      console.log('❌ CORREÇÃO: Universal Link falhou:', error);
+    }
+
+    // 🔥 ESTRATÉGIA 2: Deep link como fallback
+    try {
+      console.log('👻 CORREÇÃO: Tentativa Deep link como fallback');
       const url = new URL(connectUrl);
       const phantomUrl = `phantom://ul/v1/connect?${url.searchParams.toString()}`;
-      console.log('🔗 Deep link URL:', phantomUrl);
 
       const canOpenDeepLink = await Linking.canOpenURL('phantom://');
-      console.log('📱 Pode abrir phantom://:', canOpenDeepLink);
+      console.log('📱 CORREÇÃO: Pode abrir phantom://:', canOpenDeepLink);
 
       if (canOpenDeepLink) {
         await Linking.openURL(phantomUrl);
-        console.log('✅ Deep link enviado com sucesso');
+        console.log('✅ CORREÇÃO: Deep link enviado como fallback');
         return true;
-      } else {
-        console.log('❌ Deep link não disponível, tentando Universal Link');
       }
     } catch (error) {
-      console.log('❌ Deep link falhou:', error);
+      console.log('❌ CORREÇÃO: Deep link fallback falhou:', error);
     }
 
-    try {
-      console.log('🌐 Tentativa 2 (Android): Universal Link');
-      await Linking.openURL(connectUrl);
-      console.log('✅ Universal Link enviado diretamente');
-      await this.delay(2000);
-      return true;
-    } catch (error) {
-      console.log('❌ Universal Link direto falhou:', error);
-    }
-
-    try {
-      console.log('🌐 Tentativa 3 (Android): WebBrowser como último recurso');
-      const result = await WebBrowser.openBrowserAsync(connectUrl, {
-        showTitle: true,
-        toolbarColor: '#6b46c1',
-        showInRecents: false,
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        controlsColor: '#6b46c1',
-        browserPackage: undefined
-      });
-
-      console.log('📱 WebBrowser resultado:', result);
-
-      if (result.type === 'cancel') {
-        console.log('❌ Usuário cancelou no WebBrowser');
-        return false;
-      }
-
-      console.log('✅ Phantom aberto via WebBrowser');
-      return true;
-    } catch (error) {
-      console.log('❌ WebBrowser falhou:', error);
-    }
-
-    console.log('❌ Todos os métodos Android falharam');
+    console.log('❌ CORREÇÃO: Ambos os métodos falharam');
     return false;
   }
 
@@ -1367,6 +1455,7 @@ class PhantomService {
   }): string {
     const baseUrl = PHANTOM_CONFIG.CONNECT_URL;
 
+    // 🔥 CORREÇÃO: Usar parâmetros mais simples
     const urlParams = new URLSearchParams({
       app_url: params.app_url,
       dapp_encryption_public_key: params.dapp_encryption_public_key,
@@ -1376,13 +1465,21 @@ class PhantomService {
 
     const finalUrl = `${baseUrl}?${urlParams.toString()}`;
 
-    console.log('🔧 Construindo URL de conexão:');
+    console.log('🔧 CORREÇÃO: URL de conexão construída:');
     console.log('  📍 Base URL:', baseUrl);
     console.log('  🌐 App URL:', params.app_url);
     console.log('  🔑 Public Key:', params.dapp_encryption_public_key.slice(0, 10) + '...');
     console.log('  📱 Redirect:', params.redirect_link);
     console.log('  🌍 Cluster:', params.cluster || 'devnet');
     console.log('  🔗 URL Final:', finalUrl);
+
+    // 🔥 CORREÇÃO: Testar se URL está válida
+    try {
+      new URL(finalUrl);
+      console.log('✅ CORREÇÃO: URL é válida');
+    } catch (error) {
+      console.log('❌ CORREÇÃO: URL inválida:', error);
+    }
 
     return finalUrl;
   }

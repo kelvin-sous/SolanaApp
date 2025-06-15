@@ -6,7 +6,7 @@
 export const APP_CONFIG = {
   NAME: 'Solana Wallet TCC',
   VERSION: '1.0.0',
-  APP_URL: 'https://phantomnfc.wallet', // <--- MUDANÇA AQUI!
+  APP_URL: 'https://kelvin-sous.github.io/SolanaApp', // ✅ CORRIGIDO!
   DEEP_LINK_SCHEME: 'solanawallet',
   TIMEOUT_DURATION: 120000, // 2 minutos
 
