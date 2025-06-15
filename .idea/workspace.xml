@@ -4,13 +4,7 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="12ffd027-319a-4fd9-a4de-ff39b4aad565" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/eas.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/app.json" beforeDir="false" afterPath="$PROJECT_DIR$/app.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-    </list>
+    <list default="true" id="3aa6b92d-0027-41dd-99df-c88ddc0d1acd" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -23,9 +17,10 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="ProjectColorInfo"><![CDATA[{
+  "customColor": "",
   "associatedIndex": 8
 }]]></component>
-  <component name="ProjectId" id="2ySuWGgfvJbv4OZBwh8XNK5RBh4" />
+  <component name="ProjectId" id="2yY6osQbRtxKA7uAkpLbmVLmuHs" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -40,17 +35,17 @@
     "cidr.known.project.marker": "true",
     "git-widget-placeholder": "dev",
     "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "D:/Kelvin/Faculdade/PrgmMobile/Projeto 2 Bimestre/AppCrypto"
+    "last_opened_file_path": "D:/Kelvin/Faculdade/PrgmMobile/Projeto 2 Bimestre/SolanaApp"
   }
 }]]></component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="12ffd027-319a-4fd9-a4de-ff39b4aad565" name="Changes" comment="" />
-      <created>1749840327066</created>
+      <changelist id="3aa6b92d-0027-41dd-99df-c88ddc0d1acd" name="Changes" comment="" />
+      <created>1749999337874</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1749840327066</updated>
+      <updated>1749999337874</updated>
     </task>
     <servers />
   </component>
