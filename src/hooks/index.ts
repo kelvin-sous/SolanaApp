@@ -1,5 +1,9 @@
-export { usePhantom } from './usePhantom';
-export type { UsePhantomReturn } from './usePhantom';
+// ========================================
+// src/hooks/index.ts
+// Exportação centralizada dos hooks - ATUALIZADO
+// ========================================
 
-export { useBalance } from './useBalance';
-export type { UseBalanceReturn } from './useBalance';
+export * from './usePhantom';
+export * from './useBalance';
+export * from './useNFC';
+export * from './useQRCode';

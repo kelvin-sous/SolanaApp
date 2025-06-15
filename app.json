@@ -4,26 +4,50 @@
     "slug": "solana-wallet-novo",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icons/app-icon.png",
     "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "assetBundlePatterns": [
       "**/*"
+    ],
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permitir acesso à câmera para escanear QR codes de pagamento."
+        }
+      ]
     ],
     "scheme": "solanawallet",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.solanawallettcc",
+      "bundleIdentifier": "com.tccsolana.walletapp",
       "infoPlist": {
         "CFBundleURLTypes": [
           {
-            "CFBundleURLName": "phantom-connect",
-            "CFBundleURLSchemes": ["solanawallet", "exp"]
+            "CFBundleURLName": "solanawallet-deeplink",
+            "CFBundleURLSchemes": [
+              "solanawallet"
+            ]
           }
         ],
-        "LSApplicationQueriesSchemes": ["phantom"]
-      }
+        "LSApplicationQueriesSchemes": [
+          "phantom"
+        ]
+      },
+      "associatedDomains": [
+        "applinks:kelvin-sous.github.io"
+      ]
     },
     "android": {
-      "package": "com.yourcompany.solanawallettcc",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icons/app-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.tccsolana.walletapp",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -31,15 +55,26 @@
           "data": [
             {
               "scheme": "solanawallet"
-            },
-            {
-              "scheme": "exp"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
+      ],
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
-    "web": {}
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "254f6728-98b2-4dbe-8684-254a300ed75c"
+      }
+    }
   }
 }

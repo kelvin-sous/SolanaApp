@@ -1,3 +1,8 @@
+// ========================================
+// src/types/transaction.ts
+// Tipos para transações
+// ========================================
+
 import { PublicKey } from '@solana/web3.js';
 
 export interface Transaction {

@@ -24,11 +24,19 @@
             "CFBundleURLSchemes": [
               "exp"
             ]
+          },
+          {
+            "CFBundleURLName": "phantom-transaction",
+            "CFBundleURLSchemes": [
+              "exp"
+            ]
           }
         ],
         "LSApplicationQueriesSchemes": [
-          "phantom"
-        ]
+          "phantom",
+          "https"
+        ],
+        "NFCReaderUsageDescription": "Este app usa NFC para transferências de criptomoedas entre dispositivos de forma segura."
       }
     },
     "android": {
@@ -37,6 +45,9 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.yourcompany.solanawallettcc",
+      "permissions": [
+        "android.permission.NFC"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -50,23 +61,67 @@
             "BROWSABLE",
             "DEFAULT"
           ]
+        },
+        {
+          "action": "android.nfc.action.NDEF_DISCOVERED",
+          "data": [
+            {
+              "mimeType": "text/plain"
+            }
+          ],
+          "category": [
+            "DEFAULT"
+          ]
         }
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "exp"
+    "scheme": "exp",
+    "plugins": [
+      "expo-secure-store"
+    ]
   },
   "dependencies": {
+    "@ethersproject/shims": "^5.8.0",
+    "@expo/metro-config": "~0.18.0",
+    "@react-native-clipboard/clipboard": "^1.16.2",
+    "@react-navigation/native": "^7.1.10",
+    "@react-navigation/stack": "^7.3.3",
     "@solana/web3.js": "^1.98.2",
     "bs58": "^6.0.0",
-    "expo-crypto": "~14.1.4",
+    "buffer": "^6.0.3",
+    "expo": "^53.0.10",
+    "expo-camera": "~16.1.8",
+    "expo-clipboard": "~7.1.4",
+    "expo-crypto": "~14.1.5",
+    "expo-dev-client": "~5.2.0",
     "expo-linking": "~7.1.5",
     "expo-secure-store": "~14.2.3",
     "expo-status-bar": "~2.2.3",
     "expo-web-browser": "~14.1.6",
+    "metro": "^0.82.0",
+    "react": "19.0.0",
+    "react-native": "0.79.3",
+    "react-native-crypto": "^2.2.0",
     "react-native-get-random-values": "^1.11.0",
+    "react-native-nfc-manager": "^3.16.1",
+    "react-native-qrcode-svg": "^6.3.15",
+    "react-native-randombytes": "^3.6.1",
+    "react-native-reanimated": "~3.17.4",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.11.1",
+    "react-native-svg": "^15.12.0",
+    "react-native-url-polyfill": "^2.0.0",
+    "stream-browserify": "^3.0.0",
+    "text-encoding": "^0.7.0",
     "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0",
+    "@types/react": "^19.0.0",
+    "@types/react-native": "~0.73.0",
+    "typescript": "^5.8.3"
   }
 }

@@ -1,153 +1,123 @@
 // ========================================
 // src/hooks/usePhantom.ts
-// Refatorado com tipos centralizados
+// Hook para gerenciar conexão com Phantom - CORRIGIDO
 // ========================================
 
 import { useState, useEffect, useCallback } from 'react';
 import { PublicKey } from '@solana/web3.js';
 import PhantomService from '../services/phantom/PhantomService';
-import { PhantomSession, PhantomConnectionResult } from '../types/phantom';
+import { PhantomSession } from '../types/phantom';
 
 export interface UsePhantomReturn {
-  // Estado
   isConnected: boolean;
-  isConnecting: boolean;
+  isLoading: boolean;
+  error: string | null;
   publicKey: PublicKey | null;
   session: PhantomSession | null;
-  
-  // Ações
-  connectOrDownload: () => Promise<PhantomConnectionResult>;
+  connect: () => Promise<'CONNECTED' | 'DOWNLOAD_NEEDED'>;
   disconnect: () => Promise<void>;
-  
-  // Feedback
-  error: string | null;
-  clearError: () => void;
+  testDeepLink: () => Promise<void>;
 }
 
 export const usePhantom = (): UsePhantomReturn => {
-  // Estados
   const [isConnected, setIsConnected] = useState(false);
-  const [isConnecting, setIsConnecting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [publicKey, setPublicKey] = useState<PublicKey | null>(null);
   const [session, setSession] = useState<PhantomSession | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const phantomService = PhantomService.getInstance();
 
-  // Limpar erro
-  const clearError = useCallback(() => {
-    setError(null);
+  // Carrega sessão salva ao inicializar
+  useEffect(() => {
+    loadSavedSession();
   }, []);
 
-  // Atualizar estado com sessão
-  const updateSessionState = useCallback((phantomSession: PhantomSession | null) => {
-    if (phantomSession) {
-      setSession(phantomSession);
-      setPublicKey(phantomSession.publicKey);
+  const loadSavedSession = async () => {
+    try {
+      setIsLoading(true);
+      const savedSession = await phantomService.loadSession();
+
+      if (savedSession) {
+        setSession(savedSession);
+        setPublicKey(savedSession.publicKey);
+        setIsConnected(true);
+        console.log('✅ Sessão restaurada');
+      }
+    } catch (err) {
+      console.error('❌ Erro ao carregar sessão:', err);
+      setError('Erro ao carregar sessão salva');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const connect = useCallback(async (): Promise<'CONNECTED' | 'DOWNLOAD_NEEDED'> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const result = await phantomService.connectOrDownload();
+
+      if (result === 'DOWNLOAD_NEEDED') {
+        return 'DOWNLOAD_NEEDED';
+      }
+
+      // Conexão bem-sucedida
+      setSession(result);
+      setPublicKey(result.publicKey);
       setIsConnected(true);
-    } else {
+
+      console.log('✅ Conectado com sucesso:', result.publicKey.toString());
+      return 'CONNECTED';
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('❌ Erro na conexão:', errorMessage);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [phantomService]);
+
+  const disconnect = useCallback(async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+      await phantomService.disconnect();
+
       setSession(null);
       setPublicKey(null);
       setIsConnected(false);
-    }
-  }, []);
+      setError(null);
 
-  // Carregar sessão salva na inicialização
-  useEffect(() => {
-    const loadSavedSession = async () => {
-      try {
-        console.log('🔄 Verificando sessão salva...');
-        const savedSession = await phantomService.loadSession();
-        
-        if (savedSession) {
-          updateSessionState(savedSession);
-          console.log('✅ Sessão salva carregada:', savedSession.publicKey.toString());
-        } else {
-          console.log('ℹ️ Nenhuma sessão salva encontrada');
-        }
-      } catch (error) {
-        console.error('❌ Erro ao carregar sessão salva:', error);
-        setError('Erro ao carregar sessão salva');
-      }
-    };
-
-    loadSavedSession();
-  }, [phantomService, updateSessionState]);
-
-  // Conectar ou redirecionar para download
-  const connectOrDownload = useCallback(async (): Promise<PhantomConnectionResult> => {
-    if (isConnecting || isConnected) {
-      console.log('ℹ️ Já conectando ou conectado');
-      return 'CONNECTED';
-    }
-
-    setIsConnecting(true);
-    setError(null);
-
-    try {
-      console.log('🚀 Iniciando connectOrDownload...');
-      
-      const result = await phantomService.connectOrDownload();
-      
-      if (result === 'DOWNLOAD_NEEDED') {
-        console.log('📥 Download necessário');
-        return 'DOWNLOAD_NEEDED';
-      } else {
-        // Sucesso na conexão
-        updateSessionState(result);
-        console.log('✅ Conectado com sucesso!');
-        return 'CONNECTED';
-      }
-      
+      console.log('✅ Desconectado com sucesso');
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao desconectar';
+      console.error('❌ Erro ao desconectar:', errorMessage);
       setError(errorMessage);
-      console.error('❌ Erro na conexão:', err);
-      
-      // Limpar estado em caso de erro
-      updateSessionState(null);
-      return 'ERROR';
+      throw err;
     } finally {
-      setIsConnecting(false);
+      setIsLoading(false);
     }
-  }, [isConnecting, isConnected, phantomService, updateSessionState]);
+  }, [phantomService]);
 
-  // Desconectar da Phantom
-  const disconnect = useCallback(async () => {
+  const testDeepLink = useCallback(async (): Promise<void> => {
     try {
-      console.log('🔌 Desconectando da Phantom...');
-      
-      await phantomService.disconnect();
-      updateSessionState(null);
-      
-      console.log('✅ Desconectado com sucesso!');
-      
+      console.log('🧪 Testando deep link...');
+      await phantomService.testDeepLink();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao desconectar';
-      setError(errorMessage);
-      console.error('❌ Erro na desconexão:', err);
-      
-      // Limpar estado mesmo com erro
-      updateSessionState(null);
+      console.error('❌ Erro no teste:', err);
     }
-  }, [phantomService, updateSessionState]);
+  }, [phantomService]);
 
   return {
-    // Estado
     isConnected,
-    isConnecting,
+    isLoading,
+    error,
     publicKey,
     session,
-    
-    // Ações
-    connectOrDownload,
+    connect,
     disconnect,
-    
-    // Feedback
-    error,
-    clearError
+    testDeepLink
   };
 };
-
-// Export default também para flexibilidade
-export default usePhantom;
