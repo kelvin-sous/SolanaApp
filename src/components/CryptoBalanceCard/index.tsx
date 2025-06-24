@@ -1,9 +1,9 @@
 // ========================================
 // src/components/CryptoBalanceCard/index.tsx
-// Card para exibir saldos de múltiplas moedas
+// Card 100% SILENCIOSO - Zero logs de atualização
 // ========================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,245 +13,261 @@ import {
 } from 'react-native';
 import { PublicKey } from '@solana/web3.js';
 import { useBalance } from '../../hooks/useBalance';
-import SolanaService from '../../services/solana/SolanaService';
+import { useRealtimePrices } from '../../hooks/useRealtimePrices';
 import { styles } from './styles';
 
 interface CryptoBalanceCardProps {
   publicKey: PublicKey | null;
 }
 
-interface CoinData {
+interface DisplayCoin {
   symbol: string;
   name: string;
   icon: any;
   balance: number;
-  usdValue: number;
-  change24h: number;
+  marketPrice: number;
+  priceChange24h: number;
+  percentChange24h: number;
+  source: 'websocket' | 'api' | 'cache';
 }
 
 const CryptoBalanceCard: React.FC<CryptoBalanceCardProps> = ({ publicKey }) => {
   const { balance: solBalance, isLoading: solLoading } = useBalance(publicKey);
-  const [coins, setCoins] = useState<CoinData[]>([]);
-  const [isLoadingPrices, setIsLoadingPrices] = useState(false);
+  
+  // ✨ HOOK DE TEMPO REAL - INCLUINDO BRL
+  const {
+    prices,
+    isConnected,
+    error: realtimeError,
+    lastUpdate,
+    status,
+    reconnect
+  } = useRealtimePrices(
+    ['solana', 'usd-coin', 'brl-token'],
+    true
+  );
 
-  // Inicializar dados das moedas
-  useEffect(() => {
-    initializeCoinData();
-  }, [solBalance]);
-
-  // Buscar preços a cada 30 segundos
-  useEffect(() => {
-    if (publicKey) {
-      fetchPrices();
-      const interval = setInterval(fetchPrices, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [publicKey]);
-
-  const initializeCoinData = () => {
+  // ✨ CALCULAR DADOS EM TEMPO REAL (SILENCIOSO)
+  const displayCoins: DisplayCoin[] = useMemo(() => {
     const solBalanceValue = solBalance?.balance || 0;
+    const solPriceData = prices.get('solana');
+    const usdcPriceData = prices.get('usd-coin');
+    const brlPriceData = prices.get('brl-token');
     
-    const initialCoins: CoinData[] = [
+    // Se não tiver dados essenciais ainda
+    if (!solPriceData || !usdcPriceData) {
+      return [];
+    }
+
+    const solPrice = solPriceData.price;
+    const usdcPrice = usdcPriceData.price;
+    const solUsdValue = solBalanceValue * solPrice;
+
+    const brlPrice = brlPriceData?.price || 0.19;
+    const brlChange24h = brlPriceData?.percentChange24h || 0;
+    const brlPriceChange24h = brlPriceData?.priceChange24h || 0;
+    const brlSource = brlPriceData?.source || 'cache';
+
+    const coins: DisplayCoin[] = [
       {
         symbol: 'SOL',
         name: 'Solana',
         icon: require('../../../assets/icons/solana.png'),
         balance: solBalanceValue,
-        usdValue: 0,
-        change24h: 0
+        marketPrice: solPrice,
+        priceChange24h: solPriceData.priceChange24h,
+        percentChange24h: solPriceData.percentChange24h,
+        source: solPriceData.source
       },
       {
         symbol: 'USDC',
         name: 'USD Coin',
         icon: require('../../../assets/icons/usdc.png'),
-        balance: 0, // Por enquanto 0, pode ser implementado depois
-        usdValue: 0,
-        change24h: 0
+        balance: solUsdValue,
+        marketPrice: usdcPrice,
+        priceChange24h: usdcPriceData.priceChange24h,
+        percentChange24h: usdcPriceData.percentChange24h,
+        source: usdcPriceData.source
       },
       {
         symbol: 'BRL',
         name: 'Real Brasileiro',
         icon: require('../../../assets/icons/brlCOIN.png'),
-        balance: 0,
-        usdValue: 0,
-        change24h: 0
+        balance: solUsdValue / brlPrice,
+        marketPrice: brlPrice,
+        priceChange24h: brlPriceChange24h,
+        percentChange24h: brlChange24h,
+        source: brlSource
       }
     ];
 
-    setCoins(initialCoins);
-  };
+    // ✨ SILENCIOSO: Sem nenhum log aqui
+    return coins;
+  }, [solBalance, prices]);
 
-  const fetchPrices = async () => {
-    try {
-      setIsLoadingPrices(true);
-      
-      // Buscar preço do SOL
-      const solanaService = SolanaService.getInstance();
-      const solPrice = await solanaService.getSOLPrice();
-      
-      // Simular dados para USDC e BRL (você pode implementar APIs reais depois)
-      const usdcPrice = 1.00; // USDC sempre ~$1
-      const brlRate = 5.20; // Exemplo: 1 USD = 5.20 BRL
-      
-      const solBalanceValue = solBalance?.balance || 0;
-      const solUsdValue = solBalanceValue * solPrice.usd;
-      const brlValue = solUsdValue * brlRate;
-
-      setCoins(prevCoins => [
-        {
-          ...prevCoins[0],
-          balance: solBalanceValue,
-          usdValue: solUsdValue,
-          change24h: getCoinChange('SOL')
-        },
-        {
-          ...prevCoins[1],
-          balance: solUsdValue / usdcPrice, // Equivalente em USDC
-          usdValue: solUsdValue,
-          change24h: getCoinChange('USDC')
-        },
-        {
-          ...prevCoins[2],
-          balance: brlValue,
-          usdValue: solUsdValue,
-          change24h: getCoinChange('BRL')
-        }
-      ]);
-
-    } catch (error) {
-      console.error('❌ Erro ao buscar preços:', error);
-    } finally {
-      setIsLoadingPrices(false);
-    }
-  };
-
-  // Simular variação de preço baseada na moeda
-  const getCoinChange = (symbol: string) => {
-    switch (symbol) {
-      case 'SOL':
-        // SOL pode ter variações maiores (-10% a +10%)
-        return (Math.random() - 0.5) * 20;
-      case 'USDC':
-        // USDC é estável (-0.5% a +0.5%)
-        return (Math.random() - 0.5) * 1;
-      case 'BRL':
-        // BRL pode variar conforme câmbio (-5% a +5%)
-        return (Math.random() - 0.5) * 10;
-      default:
-        return 0;
-    }
-  };
-
-  const formatBalance = (balance: number, symbol: string): string => {
-    if (symbol === 'BRL') {
-      return balance.toLocaleString('pt-BR', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
-    }
+  // ✨ FORMATAÇÕES
+  const formatMarketPrice = (price: number): string => {
+    if (price === 0) return 'Conectando...';
     
-    if (balance >= 1000) {
-      return balance.toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
+    if (price >= 1000) {
+      return `$${(price / 1000).toFixed(1)}K`;
     }
-    
-    return balance.toFixed(symbol === 'SOL' ? 4 : 2);
+    if (price >= 1) {
+      return `$${price.toFixed(2)}`;
+    }
+    return `$${price.toFixed(4)}`;
   };
 
-  const formatUsdValue = (usdValue: number): string => {
-    if (usdValue >= 1000) {
-      return `$${(usdValue / 1000).toFixed(1)}K`;
+  const formatPriceChange = (priceChange: number, percentChange: number): {
+    dollarChange: string;
+    percentChangeText: string;
+    color: string;
+  } => {
+    if (priceChange === 0 && percentChange === 0) {
+      return {
+        dollarChange: '$0.000',
+        percentChangeText: '0.00%',
+        color: '#888888'
+      };
     }
-    return `$${usdValue.toFixed(2)}`;
-  };
 
-  const formatChange = (change: number, usdValue: number): { percentage: string; valueChange: string } => {
-    const sign = change >= 0 ? '+' : '';
-    const percentage = `${sign}${change.toFixed(2)}%`;
-    
-    // Calcular variação em valor absoluto
-    const valueChange = (usdValue * change) / 100;
-    const formattedValueChange = `${sign}${Math.abs(valueChange).toFixed(2)}`;
+    const sign = priceChange >= 0 ? '+' : '';
+    const color = priceChange >= 0 ? '#00D4AA' : '#FF6B6B';
     
     return {
-      percentage,
-      valueChange: formattedValueChange
+      dollarChange: `${sign}$${Math.abs(priceChange).toFixed(3)}`,
+      percentChangeText: `${sign}${percentChange.toFixed(2)}%`,
+      color: color
     };
   };
 
-  const getChangeColor = (change: number): string => {
-    return change >= 0 ? '#00D4AA' : '#FF6B6B';
+  const getConnectionStatus = (): string => {
+    if (!isConnected) return 'Desconectado';
+    if (!lastUpdate) return 'Conectando...';
+    
+    const secondsAgo = Math.floor((Date.now() - lastUpdate) / 1000);
+    
+    if (secondsAgo < 2) return 'Tempo Real';
+    if (secondsAgo < 60) return `${secondsAgo}s atrás`;
+    
+    const minutesAgo = Math.floor(secondsAgo / 60);
+    return `${minutesAgo}m atrás`;
+  };
+
+  // ✨ HANDLERS (SILENCIOSOS)
+  const handleReconnect = () => {
+    // ✨ SILENCIOSO: Reconectar sem log
+    reconnect();
+  };
+
+  const handleCoinPress = (coin: DisplayCoin) => {
+    // ✨ SILENCIOSO: Interação sem log
   };
 
   if (!publicKey) {
     return null;
   }
 
+  // ✨ ESTADO DE ERRO
+  if (realtimeError && !isConnected && displayCoins.length === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>📡 Conexão WebSocket</Text>
+          <Text style={styles.errorMessage}>{realtimeError}</Text>
+          <Text style={styles.errorSubtext}>
+            Tentando reconectar automaticamente...
+          </Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={handleReconnect}
+          >
+            <Text style={styles.retryButtonText}>Reconectar Agora</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ✨ LOADING INICIAL
+  if (!isConnected && displayCoins.length === 0) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#AB9FF3" />
+          <Text style={styles.loadingText}>Conectando WebSocket...</Text>
+          <Text style={styles.loadingSubtext}>
+            Binance Stream: SOL + USDC + BRL em tempo real
+          </Text>
+          <Text style={styles.loadingSubtext}>
+            📊 Preços: {status.pricesCount || 0} • 
+            👥 Subs: {status.subscribersCount || 0}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>💰 Portfólio</Text>
-        {isLoadingPrices && (
-          <ActivityIndicator size="small" color="#AB9FF3" />
-        )}
-      </View>
-
       <View style={styles.coinsContainer}>
-        {coins.map((coin, index) => (
-          <TouchableOpacity
-            key={coin.symbol}
-            style={[
-              styles.coinRow,
-              index === coins.length - 1 && styles.lastCoinRow
-            ]}
-            activeOpacity={0.7}
-            onPress={() => {
-              console.log(`📊 Detalhes de ${coin.symbol}`);
-              // Aqui você pode implementar navegação para detalhes da moeda
-            }}
-          >
-            <View style={styles.coinLeft}>
-              <View style={styles.coinIconContainer}>
-                <Image 
-                  source={coin.icon}
-                  style={styles.coinIcon}
-                  resizeMode="contain"
-                />
+        {displayCoins.map((coin, index) => {
+          const changeData = formatPriceChange(coin.priceChange24h, coin.percentChange24h);
+          
+          return (
+            <TouchableOpacity
+              key={`${coin.symbol}-${index}`}
+              style={[
+                styles.coinRow,
+                index === displayCoins.length - 1 && styles.lastCoinRow
+              ]}
+              activeOpacity={0.7}
+              onPress={() => handleCoinPress(coin)}
+            >
+              <View style={styles.coinLeft}>
+                <View style={styles.coinIconContainer}>
+                  <Image 
+                    source={coin.icon}
+                    style={styles.coinIcon}
+                    resizeMode="contain"
+                  />
+                </View>
+                <View style={styles.coinInfo}>
+                  <Text style={styles.coinSymbol}>
+                    {coin.symbol}
+                  </Text>
+                  <Text style={styles.marketPrice}>
+                    {formatMarketPrice(coin.marketPrice)}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.coinInfo}>
-                <Text style={styles.coinSymbol}>{coin.symbol}</Text>
-                <Text style={styles.coinBalance}>
-                  {formatBalance(coin.balance, coin.symbol)}
-                </Text>
-              </View>
-            </View>
 
-            <View style={styles.coinRight}>
-              <View style={styles.coinValueChangeContainer}>
-                <Text style={[
-                  styles.coinValueChange,
-                  { color: getChangeColor(coin.change24h) }
-                ]}>
-                  {formatChange(coin.change24h, coin.usdValue).valueChange}
-                </Text>
-                <Text style={[
-                  styles.coinChange,
-                  { color: getChangeColor(coin.change24h) }
-                ]}>
-                  {formatChange(coin.change24h, coin.usdValue).percentage}
-                </Text>
+              <View style={styles.coinRight}>
+                <View style={styles.priceChangeContainer}>
+                  <Text style={[
+                    styles.dollarChange,
+                    { color: changeData.color }
+                  ]}>
+                    {changeData.dollarChange}
+                  </Text>
+                  <Text style={[
+                    styles.percentChange,
+                    { color: changeData.color }
+                  ]}>
+                    {changeData.percentChangeText}
+                  </Text>
+                </View>
               </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
+      {/* Overlay de carregamento do saldo SOL */}
       {solLoading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="small" color="#AB9FF3" />
-          <Text style={styles.loadingText}>Atualizando saldos...</Text>
+          <Text style={styles.loadingText}>Atualizando saldo SOL...</Text>
         </View>
       )}
     </View>
