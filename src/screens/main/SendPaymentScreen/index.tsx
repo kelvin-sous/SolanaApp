@@ -1,6 +1,6 @@
 // ========================================
 // src/screens/main/SendPaymentScreen/index.tsx
-// CORRIGIDO - Usar signAndSendTransaction do PhantomService
+// CORRIGIDO - Com integração do banco de dados
 // ========================================
 
 import React, { useState, useEffect } from 'react';
@@ -17,14 +17,16 @@ import {
 } from 'react-native';
 import { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { useBalance } from '../../../hooks/useBalance';
+import { useTransfers } from '../../../hooks/useTransfers'; // ✨ ADICIONADO
 import SolanaService from '../../../services/solana/SolanaService';
-import PhantomService from '../../../services/phantom/PhantomService'; // ADICIONADO
+import PhantomService from '../../../services/phantom/PhantomService';
+import RealtimePriceService from '../../../services/crypto/RealtimePriceService'; // ✨ ADICIONADO
 import { styles } from './styles';
 
 interface SendPaymentScreenProps {
     onBack: () => void;
     publicKey: PublicKey;
-    session?: any; // Manter para compatibilidade, mas não usar para transações
+    session?: any;
     recipientData?: {
         address: string;
         label?: string;
@@ -41,6 +43,7 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
     recipientData
 }) => {
     const { balance, refreshBalance } = useBalance(publicKey);
+    const { saveTransfer, updateTransferStatus } = useTransfers(publicKey); // ✨ ADICIONADO
     const [amount, setAmount] = useState('');
     const [solAmount, setSolAmount] = useState('0.00');
     const [isLoading, setIsLoading] = useState(false);
@@ -51,31 +54,39 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
         if (recipientData?.amountUSD) {
             setAmount(recipientData.amountUSD.toString());
         } else if (recipientData?.amount) {
-            // Se o QR code tem valor em SOL, converter para USD
             const usdValue = recipientData.amount * solPrice;
             setAmount(usdValue.toFixed(2));
         }
     }, [recipientData, solPrice]);
 
-    // ✅ BUSCAR PREÇO REAL DO SOL
+    // ✅ BUSCAR PREÇO REAL DO SOL EM TEMPO REAL
     useEffect(() => {
         fetchSOLPrice();
     }, []);
 
     const fetchSOLPrice = async () => {
         try {
-            const solanaService = SolanaService.getInstance();
-            const priceData = await solanaService.getSOLPrice();
-            setSolPrice(priceData.usd);
-            console.log('💰 Preço SOL obtido:', priceData.usd);
+            // ✨ USAR SERVIÇO DE PREÇOS EM TEMPO REAL
+            const priceService = RealtimePriceService.getInstance();
+            const prices = priceService.getCurrentPrices();
+            const solPriceData = prices.get('solana');
+            
+            if (solPriceData?.price) {
+                setSolPrice(solPriceData.price);
+                console.log('💰 Preço SOL em tempo real:', solPriceData.price);
+            } else {
+                // Fallback para SolanaService se não tiver preço em tempo real
+                const solanaService = SolanaService.getInstance();
+                const priceData = await solanaService.getSOLPrice();
+                setSolPrice(priceData.usd);
+            }
         } catch (error) {
             console.error('❌ Erro ao buscar preço SOL:', error);
-            setSolPrice(100); // Fallback
+            setSolPrice(150); // Fallback atualizado
         }
     };
 
     useEffect(() => {
-        // Calcular valor em SOL quando USD muda
         if (amount) {
             const usdValue = parseFloat(amount) || 0;
             const solValue = usdValue / solPrice;
@@ -85,18 +96,15 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
         }
     }, [amount, solPrice]);
 
-    // ✅ VERIFICAÇÃO ATUALIZADA - SEM DEPENDÊNCIA DE session.signTransaction
     const validateTransaction = (): { isValid: boolean; error?: string } => {
         const usdValue = parseFloat(amount);
         const solValue = parseFloat(solAmount);
         const estimatedFee = 0.000005;
 
-        // Verificar valor
         if (!amount || usdValue <= 0) {
             return { isValid: false, error: 'Digite um valor válido para enviar' };
         }
 
-        // Verificar endereço
         if (!recipientData?.address) {
             return { isValid: false, error: 'Endereço do destinatário não encontrado' };
         }
@@ -107,28 +115,18 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
             return { isValid: false, error: 'Endereço do destinatário inválido' };
         }
 
-        // ✅ VERIFICAR PHANTOM SERVICE AO INVÉS DA SESSÃO
         const phantomService = PhantomService.getInstance();
         if (!phantomService.isConnected()) {
             return { isValid: false, error: 'Phantom Wallet não conectado. Reconecte e tente novamente.' };
         }
 
-        // ✅ VERIFICAR SALDO SUFICIENTE
         const availableBalance = balance?.balance || 0;
         const totalNeeded = solValue + estimatedFee;
-
-        console.log('💰 Verificação de saldo:', {
-            disponível: availableBalance,
-            necessário: solValue,
-            taxa: estimatedFee,
-            total: totalNeeded,
-            suficiente: availableBalance >= totalNeeded
-        });
 
         if (availableBalance < totalNeeded) {
             return {
                 isValid: false,
-                error: `Saldo insuficiente.\n\nNecessário: ${totalNeeded.toFixed(6)} SOL\nDisponível: ${availableBalance.toFixed(6)} SOL\n\nAdicione SOL à sua carteira para continuar.`
+                error: `Saldo insuficiente.\n\nNecessário: ${totalNeeded.toFixed(6)} SOL\nDisponível: ${availableBalance.toFixed(6)} SOL`
             };
         }
 
@@ -162,35 +160,46 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
         );
     };
 
-    // IMPLEMENTAÇÃO PhantomService.signAndSendTransaction
+    // ✨ IMPLEMENTAÇÃO COM BANCO DE DADOS
     const executePayment = async () => {
+        let transferRecord: any = null;
+        
         try {
             setIsLoading(true);
-            console.log('🚀 Executando pagamento via método híbrido...');
+            console.log('🚀 Executando pagamento com integração do banco...');
 
             const solValue = parseFloat(solAmount);
+            const usdValue = parseFloat(amount);
             const solanaService = SolanaService.getInstance();
             const phantomService = PhantomService.getInstance();
             const connection = solanaService.getConnection();
 
-            // Verificar se ainda está conectado
             if (!phantomService.isConnected()) {
                 throw new Error('Phantom Wallet desconectado. Reconecte e tente novamente.');
             }
 
-            // Criar chaves públicas
             const fromPubkey = publicKey;
             const toPubkey = new PublicKey(recipientData!.address);
             const lamports = Math.floor(solValue * LAMPORTS_PER_SOL);
 
-            console.log('💳 Dados da transação:', {
-                from: fromPubkey.toString().slice(0, 8) + '...',
-                to: toPubkey.toString().slice(0, 8) + '...',
-                solAmount: solValue,
-                lamports
+            // ✨ 1. SALVAR NO BANCO COMO PENDING
+            console.log('💾 Salvando transferência no banco como pending...');
+            transferRecord = await saveTransfer({
+                transaction_signature: `temp_qr_${Date.now()}`, // Temporário
+                from_address: fromPubkey.toString(),
+                to_address: toPubkey.toString(),
+                amount_sol: solValue,
+                amount_usd: usdValue,
+                fee_sol: 0.000005,
+                status: 'pending',
+                transfer_type: 'send',
+                memo: recipientData?.message || recipientData?.label,
+                network: 'devnet'
             });
 
-            // Criar transação
+            console.log('✅ Transferência salva no banco:', transferRecord.id);
+
+            // ✨ 2. CRIAR E EXECUTAR TRANSAÇÃO
             const transaction = new Transaction().add(
                 SystemProgram.transfer({
                     fromPubkey,
@@ -199,28 +208,29 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
                 })
             );
 
-            // Obter blockhash recente
             const { blockhash } = await connection.getLatestBlockhash();
             transaction.recentBlockhash = blockhash;
             transaction.feePayer = fromPubkey;
 
-            console.log('📋 Transação criada, tentando múltiplos métodos...');
-
-            // 🔥 USAR MÉTODO HÍBRIDO QUE TENTA VÁRIAS ABORDAGENS
+            console.log('📋 Executando transação...');
             const signature = await phantomService.executeTransaction(transaction);
 
-            console.log('🎉 Transação concluída com sucesso!', signature);
+            // ✨ 3. ATUALIZAR STATUS PARA CONFIRMED
+            console.log('💾 Atualizando status para confirmed...');
+            await updateTransferStatus(transferRecord.transaction_signature, 'confirmed');
+
+            console.log('🎉 Transação e banco atualizados com sucesso!');
 
             // Atualizar saldo
             await refreshBalance();
 
             Alert.alert(
                 '🎉 Pagamento Realizado',
-                `Transação concluída com sucesso!\n\n` +
-                `💰 Valor: $${parseFloat(amount).toFixed(2)} (${solValue.toFixed(6)} SOL)\n` +
+                `✅ Transação confirmada e salva no histórico!\n\n` +
+                `💰 Valor: $${usdValue.toFixed(2)} (${solValue.toFixed(6)} SOL)\n` +
                 `📧 Para: ${recipientData!.address.slice(0, 8)}...${recipientData!.address.slice(-8)}\n` +
                 `🔗 Signature: ${signature.slice(0, 8)}...\n\n` +
-                `Ver no Explorer da Solana (devnet)`,
+                `📋 Verifique seu histórico de transferências`,
                 [
                     {
                         text: 'Ver Explorer',
@@ -237,6 +247,16 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
 
         } catch (error) {
             console.error('❌ Erro na transação:', error);
+
+            // ✨ ATUALIZAR STATUS PARA FAILED SE TIVER RECORD
+            if (transferRecord) {
+                try {
+                    await updateTransferStatus(transferRecord.transaction_signature, 'failed');
+                    console.log('💾 Status atualizado para failed no banco');
+                } catch (dbError) {
+                    console.error('❌ Erro ao atualizar status no banco:', dbError);
+                }
+            }
 
             let errorMessage = 'Erro desconhecido na transação';
             if (error instanceof Error) {
@@ -257,13 +277,6 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
                 {
                     text: 'Tentar Novamente',
                     onPress: executePayment
-                },
-                {
-                    text: 'Reconectar Phantom',
-                    onPress: () => {
-                        console.log('🔄 Usuário solicitou reconexão Phantom');
-                        onBack();
-                    }
                 },
                 {
                     text: 'Cancelar',
@@ -287,7 +300,6 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
 
     const { date, time } = formatCurrentDateTime();
 
-    // ✅ CALCULAR TOTAIS
     const estimatedFee = 0.000005;
     const solValue = parseFloat(solAmount);
     const totalSOL = solValue + estimatedFee;
@@ -298,7 +310,6 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#262728" />
 
-            {/* Header */}
             <View style={styles.header}>
                 <Image
                     source={require('../../../../assets/icons/qr-codeBRANCO.png')}
@@ -307,17 +318,14 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
                 />
             </View>
 
-            {/* Título */}
             <View style={styles.titleContainer}>
                 <Text style={styles.title}>Pagar</Text>
-                {/* ✅ MOSTRAR SALDO DISPONÍVEL */}
                 <Text style={styles.balanceIndicator}>
                     💰 Saldo: {availableBalance.toFixed(6)} SOL
                 </Text>
             </View>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-                {/* Card de Valor */}
                 <View style={styles.amountCard}>
                     <View style={styles.amountHeader}>
                         <Image
@@ -330,7 +338,6 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
 
                     <View style={styles.amountInputContainer}>
                         <Text style={styles.currencySymbol}>$</Text>
-                        {/* ✅ DESABILITAR INPUT SE VALOR FIXO DO QR CODE */}
                         <TextInput
                             style={[
                                 styles.amountInput,
@@ -354,7 +361,6 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
                     </Text>
                 </View>
 
-                {/* Card de Detalhes */}
                 <View style={styles.detailsCard}>
                     <Text style={styles.detailsTitle}>Detalhes da Transação</Text>
 
@@ -409,7 +415,6 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
                         <Text style={styles.detailValue}>{estimatedFee.toFixed(6)} SOL</Text>
                     </View>
 
-                    {/* ✅ MOSTRAR TOTAL */}
                     <View style={[styles.detailRow, styles.totalRow]}>
                         <Text style={styles.totalLabel}>Total necessário:</Text>
                         <Text style={[
@@ -422,7 +427,6 @@ const SendPaymentScreen: React.FC<SendPaymentScreenProps> = ({
                 </View>
             </ScrollView>
 
-            {/* Botões */}
             <View style={styles.buttonsContainer}>
                 <TouchableOpacity
                     style={[

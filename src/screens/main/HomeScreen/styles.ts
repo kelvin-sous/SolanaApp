@@ -86,18 +86,25 @@ export const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  // Novos estilos para o botão de scan
-  scanButton: {
+  
+  // ✨ NOVO: Botão de declaração (substituindo scanner)
+  declarationButton: {
     width: 40,
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  scanIcon: {
+  declarationIcon: {
     width: 24,
     height: 24,
-    tintColor: '#FFFFFF', // Para deixar o ícone branco
+    tintColor: '#FFFFFF',
   },
+  
+  // ✨ REMOVIDO: scanButton e scanIcon (não são mais necessários)
   
   // ✨ ESTILOS DO SALDO MELHORADOS
   balanceContainer: {

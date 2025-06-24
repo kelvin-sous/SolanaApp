@@ -6,7 +6,7 @@
 export const APP_CONFIG = {
   NAME: 'Solana Wallet TCC',
   VERSION: '1.0.0',
-  APP_URL: 'https://kelvin-sous.github.io/SolanaApp', // ✅ CORRIGIDO!
+  APP_URL: 'https://kelvin-sous.github.io/SolanaApp',
   DEEP_LINK_SCHEME: 'solanawallet',
   TIMEOUT_DURATION: 120000, // 2 minutos
 
@@ -38,17 +38,23 @@ export const STORAGE_KEYS = {
   NFC_SETTINGS: 'nfc_settings',
 } as const;
 
-// Configurações específicas para NFC
+// ✨ CONFIGURAÇÕES NFC ATUALIZADAS E EXPANDIDAS
 export const NFC_CONFIG = {
+  // Configurações de timeout e tamanho
+  TRANSACTION_TIMEOUT: 5 * 60 * 1000, // 5 minutos
   MAX_DATA_SIZE: 8192, // 8KB máximo para dados NFC
-  TRANSACTION_TIMEOUT: 300000, // 5 minutos
   RETRY_ATTEMPTS: 3,
-  CONNECTION_TIMEOUT: 30000, // 30 segundos para conectar
+  CONNECTION_TIMEOUT: 30 * 1000, // 30 segundos para conectar
+  
+  // Limites de valores para transações NFC
+  MIN_AMOUNT: 0.01, // Valor mínimo USD
+  MAX_AMOUNT: 10000, // Valor máximo USD para devnet
 
   // Tipos MIME para diferentes dados
   MIME_TYPES: {
     TRANSACTION_DATA: 'application/solana-transaction',
     TEXT_PLAIN: 'text/plain',
+    JSON_DATA: 'application/json',
   },
 
   // Códigos de erro NFC
@@ -59,6 +65,29 @@ export const NFC_CONFIG = {
     DATA_CORRUPTED: 'NFC_DATA_CORRUPTED',
     TIMEOUT: 'NFC_TIMEOUT',
     CANCELLED: 'NFC_CANCELLED',
+    INVALID_DATA: 'NFC_INVALID_DATA',
+    PERMISSION_DENIED: 'NFC_PERMISSION_DENIED',
+  },
+
+  // Configurações de validação
+  VALIDATION: {
+    MAX_TRANSACTION_AGE: 5 * 60 * 1000, // 5 minutos
+    REQUIRED_FIELDS: [
+      'amount',
+      'amountSOL', 
+      'senderPublicKey',
+      'receiverPublicKey',
+      'timestamp',
+      'nonce',
+      'solPrice'
+    ],
+  },
+
+  // Configurações de desenvolvimento
+  DEVELOPMENT: {
+    SIMULATE_ON_IOS: true, 
+    ENABLE_DEBUG_LOGS: true,
+    MOCK_TRANSFER_DELAY: 2000, // 2 segundos para simulação
   },
 } as const;
 
@@ -121,5 +150,15 @@ export const UI_CONFIG = {
     SURFACE: '#373737',
     TEXT_PRIMARY: '#FFFFFF',
     TEXT_SECONDARY: '#AAAAAA',
+  },
+
+  // Configurações específicas para NFC UI
+  NFC_COLORS: {
+    SEARCHING: '#F59E0B', 
+    CONNECTED: '#3B82F6',
+    SENDING: '#AB9FF3', 
+    RECEIVING: '#22C55E', 
+    ERROR: '#EF4444', 
+    SUCCESS: '#22C55E', 
   },
 } as const;

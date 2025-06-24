@@ -1,6 +1,6 @@
 // ========================================
 // src/screens/main/HomeScreen/index.tsx
-// Tela principal com card de criptomoedas
+// Tela principal com botão de transferências
 // ========================================
 
 import React, { useState, useEffect } from 'react';
@@ -22,6 +22,7 @@ import { usePhantom } from '../../../hooks/usePhantom';
 import NFCScreen from '../NFCScreen';
 import QRReceiveScreen from '../QRReceiveScreen';
 import QRPayScreen from '../QRPayScreen';
+import TransferHistoryScreen from '../TransferHistoryScreen';
 import CryptoBalanceCard from '../../../components/CryptoBalanceCard';
 import { styles } from './styles';
 
@@ -40,6 +41,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
   const [showNFCScreen, setShowNFCScreen] = useState(false);
   const [showQRReceiveScreen, setShowQRReceiveScreen] = useState(false);
   const [showQRPayScreen, setShowQRPayScreen] = useState(false);
+  const [showTransferHistory, setShowTransferHistory] = useState(false); // ✨ NOVO
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const iconColors = ['#AB9FF3', '#3271B8', '#E6474A'];
@@ -71,8 +73,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
     Alert.alert('Caixa Comunitário', 'Funcionalidade do caixa comunitário será implementada');
   };
 
-  const handleHeaderScan = () => {
-    Alert.alert('Scan', 'Abrindo scanner...');
+  // ✨ NOVO: Função para abrir histórico de transferências
+  const handleTransferHistory = () => {
+    setShowTransferHistory(true);
   };
 
   const toggleSidebar = () => {
@@ -152,7 +155,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
     return 0;
   };
 
-  // ✨ FUNÇÃO PARA ATUALIZAR SALDO (SEM ALERTS)
   const handleBalanceRefresh = async () => {
     try {
       setIsRefreshing(true);
@@ -168,7 +170,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
     }
   };
 
-  // Renderização condicional das telas
+  // ✨ RENDERIZAÇÃO CONDICIONAL DAS TELAS
   if (showNFCScreen) {
     return <NFCScreen onBack={() => setShowNFCScreen(false)} />;
   }
@@ -179,6 +181,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
 
   if (showQRPayScreen) {
     return <QRPayScreen onBack={() => setShowQRPayScreen(false)} publicKey={publicKey} session={session || undefined} />;
+  }
+
+  // ✨ NOVA TELA DE HISTÓRICO
+  if (showTransferHistory) {
+    return <TransferHistoryScreen onBack={() => setShowTransferHistory(false)} publicKey={publicKey} />;
   }
 
   return (
@@ -201,13 +208,14 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
             </View>
           </TouchableOpacity>
           
+          {/* ✨ SUBSTITUÍDO: Scanner por Declaração */}
           <TouchableOpacity 
-            style={styles.scanButton}
-            onPress={handleHeaderScan}
+            style={styles.declarationButton}
+            onPress={handleTransferHistory}
           >
             <Image 
-              source={require('../../../../assets/icons/scanBranco.png')} 
-              style={styles.scanIcon}
+              source={require('../../../../assets/icons/declaracao.png')} 
+              style={styles.declarationIcon}
               resizeMode="contain"
             />
           </TouchableOpacity>
@@ -231,7 +239,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
                 <Text style={styles.balanceLabel}>SALDO</Text>
               </View>
               
-              {/* ✨ BOTÃO DE REFRESH MELHORADO */}
               <TouchableOpacity 
                 style={styles.refreshButton}
                 onPress={handleBalanceRefresh}
@@ -250,7 +257,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
             </View>
           </View>
           
-          {/* ✨ INDICADOR DE STATUS DO SALDO (SEM TEXTO DE ERRO) */}
           <View style={styles.balanceAmount}>
             <Text style={styles.balanceValue}>
               {balanceLoading || isRefreshing 
@@ -333,7 +339,6 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
           </TouchableOpacity>
         </View>
 
-        {/* ✨ NOVO: CARD DE CRIPTOMOEDAS */}
         <CryptoBalanceCard publicKey={publicKey} />
 
         <View style={styles.additionalContent}>

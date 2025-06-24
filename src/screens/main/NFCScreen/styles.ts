@@ -1,6 +1,6 @@
 // ========================================
 // src/screens/main/NFCScreen/styles.ts
-// Estilos atualizados para NFCScreen
+// Estilos atualizados para NFCScreen com botão fixo
 // ========================================
 
 import { StyleSheet } from 'react-native';
@@ -14,7 +14,7 @@ export const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 30,
+    paddingBottom: 100, // ✨ ESPAÇO PARA O BOTÃO FIXO
   },
   header: {
     alignItems: 'flex-start',
@@ -161,7 +161,9 @@ export const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // Ícone NFC central
+  // ✨ REMOVIDO: nfcIconContainer, nfcIconLargeImage, nfcIconText
+  // (Comentado para referência)
+  /*
   nfcIconContainer: {
     alignItems: 'center',
     marginVertical: 40,
@@ -177,6 +179,7 @@ export const styles = StyleSheet.create({
     color: '#AAAAAA',
     textAlign: 'center',
   },
+  */
 
   // Estilos existentes mantidos
   amountCard: {
@@ -233,9 +236,36 @@ export const styles = StyleSheet.create({
   spacer: {
     flex: 1,
   },
+
+  // ✨ REMOVIDO: actionButtons (agora o botão é fixo)
+  /*
   actionButtons: {
     marginTop: 'auto',
   },
+  */
+
+  // ✨ NOVO: Container fixo para o botão
+  fixedBottomContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#262728',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 5, // Para Android
+  },
+
   primaryButton: {
     backgroundColor: '#AB9FF3',
     paddingVertical: 16,

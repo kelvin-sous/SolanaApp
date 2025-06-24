@@ -1,6 +1,6 @@
 // ========================================
 // src/screens/main/NFCScreen/index.tsx
-// Tela de seleção NFC
+// Tela de seleção NFC - ATUALIZADA: Sem ícone NFC e botão fixo
 // ========================================
 
 import React, { useState, useEffect } from 'react';
@@ -142,138 +142,128 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#262728" />
       
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <Image 
-            source={require('../../../../assets/icons/nfcBRANCO.png')}
-            style={styles.nfcHeaderIcon}
-            resizeMode="contain"
-          />
-        </View>
+      {/* ✨ SCROLLVIEW COM FLEX PARA BOTÃO FIXO */}
+      <View style={{ flex: 1 }}>
+        <ScrollView 
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.header}>
+            <Image 
+              source={require('../../../../assets/icons/nfcBRANCO.png')}
+              style={styles.nfcHeaderIcon}
+              resizeMode="contain"
+            />
+          </View>
 
-        <View style={styles.modeSelectorSingle}>
-          <Text style={styles.modeButtonTextActive}>Transferências NFC</Text>
-        </View>
+          <View style={styles.modeSelectorSingle}>
+            <Text style={styles.modeButtonTextActive}>Transferências NFC</Text>
+          </View>
 
-        {/* Card de informações da carteira */}
-        <View style={styles.walletInfoCard}>
-          <Text style={styles.walletInfoLabel}>Sua carteira:</Text>
-          <Text style={styles.walletInfoAddress}>
-            {publicKey ? `${publicKey.toString().slice(0, 8)}...${publicKey.toString().slice(-8)}` : 'Carregando...'}
-          </Text>
-          <Text style={styles.walletInfoBalance}>
-            Saldo: {balance ? `${balance.balance.toFixed(6)} SOL` : 'Carregando...'}
-          </Text>
-          <Text style={styles.walletInfoStatus}>
-            Status: {isConnected ? '🟢 Conectado' : '🔴 Desconectado'}
-          </Text>
-        </View>
-
-        {/* Opções de modo NFC */}
-        <View style={styles.modeOptionsContainer}>
-          <TouchableOpacity 
-            style={[
-              styles.modeOptionButton,
-              !isConnected && styles.modeOptionButtonDisabled
-            ]}
-            onPress={handleSendMode}
-            disabled={!isConnected}
-          >
-            <View style={styles.modeOptionIconContainer}>
-              <Image 
-                source={require('../../../../assets/icons/nfcBRANCO.png')}
-                style={[styles.modeOptionIcon, { transform: [{ rotate: '45deg' }] }]}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.modeOptionContent}>
-              <Text style={styles.modeOptionTitle}>Enviar</Text>
-              <Text style={styles.modeOptionDescription}>
-                Envie SOL para outro dispositivo via NFC
-              </Text>
-              <Text style={styles.modeOptionNote}>
-                Requer saldo disponível
-              </Text>
-            </View>
-            <Text style={styles.modeOptionArrow}>→</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={[
-              styles.modeOptionButton,
-              !isConnected && styles.modeOptionButtonDisabled
-            ]}
-            onPress={handleReceiveMode}
-            disabled={!isConnected}
-          >
-            <View style={styles.modeOptionIconContainer}>
-              <Image 
-                source={require('../../../../assets/icons/nfcBRANCO.png')}
-                style={[styles.modeOptionIcon, { transform: [{ rotate: '-45deg' }] }]}
-                resizeMode="contain"
-              />
-            </View>
-            <View style={styles.modeOptionContent}>
-              <Text style={styles.modeOptionTitle}>Receber</Text>
-              <Text style={styles.modeOptionDescription}>
-                Receba SOL de outro dispositivo via NFC
-              </Text>
-              <Text style={styles.modeOptionNote}>
-                Aguarda conexão do remetente
-              </Text>
-            </View>
-            <Text style={styles.modeOptionArrow}>→</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Instruções de uso */}
-        <View style={styles.instructionsContainer}>
-          <Text style={styles.instructionsTitle}>Como usar:</Text>
-          <View style={styles.instructionStep}>
-            <Text style={styles.instructionNumber}>1</Text>
-            <Text style={styles.instructionText}>
-              Escolha se você quer enviar ou receber SOL
+          {/* Card de informações da carteira */}
+          <View style={styles.walletInfoCard}>
+            <Text style={styles.walletInfoLabel}>Sua carteira:</Text>
+            <Text style={styles.walletInfoAddress}>
+              {publicKey ? `${publicKey.toString().slice(0, 8)}...${publicKey.toString().slice(-8)}` : 'Carregando...'}
+            </Text>
+            <Text style={styles.walletInfoBalance}>
+              Saldo: {balance ? `${balance.balance.toFixed(6)} SOL` : 'Carregando...'}
+            </Text>
+            <Text style={styles.walletInfoStatus}>
+              Status: {isConnected ? '🟢 Conectado' : '🔴 Desconectado'}
             </Text>
           </View>
-          <View style={styles.instructionStep}>
-            <Text style={styles.instructionNumber}>2</Text>
-            <Text style={styles.instructionText}>
-              Mantenha os dispositivos próximos (até 4cm)
-            </Text>
-          </View>
-          <View style={styles.instructionStep}>
-            <Text style={styles.instructionNumber}>3</Text>
-            <Text style={styles.instructionText}>
-              Confirme os dados da transação quando solicitado
-            </Text>
-          </View>
-          <View style={styles.instructionStep}>
-            <Text style={styles.instructionNumber}>4</Text>
-            <Text style={styles.instructionText}>
-              Aguarde a confirmação na blockchain Solana
-            </Text>
-          </View>
-        </View>
 
-        {/* Ícone NFC central */}
-        <View style={styles.nfcIconContainer}>
-          <Image 
-            source={require('../../../../assets/icons/nfcBRANCO2.png')}
-            style={styles.nfcIconLargeImage}
-            resizeMode="contain"
-          />
-          <Text style={styles.nfcIconText}>
-            Transferências instantâneas via NFC
-          </Text>
-        </View>
+          {/* Opções de modo NFC */}
+          <View style={styles.modeOptionsContainer}>
+            <TouchableOpacity 
+              style={[
+                styles.modeOptionButton,
+                !isConnected && styles.modeOptionButtonDisabled
+              ]}
+              onPress={handleSendMode}
+              disabled={!isConnected}
+            >
+              <View style={styles.modeOptionIconContainer}>
+                <Image 
+                  source={require('../../../../assets/icons/nfcBRANCO.png')}
+                  style={[styles.modeOptionIcon, { transform: [{ rotate: '45deg' }] }]}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={styles.modeOptionContent}>
+                <Text style={styles.modeOptionTitle}>Enviar</Text>
+                <Text style={styles.modeOptionDescription}>
+                  Envie SOL para outro dispositivo via NFC
+                </Text>
+                <Text style={styles.modeOptionNote}>
+                  Requer saldo disponível
+                </Text>
+              </View>
+              <Text style={styles.modeOptionArrow}>→</Text>
+            </TouchableOpacity>
 
-        <View style={styles.spacer} />
+            <TouchableOpacity 
+              style={[
+                styles.modeOptionButton,
+                !isConnected && styles.modeOptionButtonDisabled
+              ]}
+              onPress={handleReceiveMode}
+              disabled={!isConnected}
+            >
+              <View style={styles.modeOptionIconContainer}>
+                <Image 
+                  source={require('../../../../assets/icons/nfcBRANCO.png')}
+                  style={[styles.modeOptionIcon, { transform: [{ rotate: '-45deg' }] }]}
+                  resizeMode="contain"
+                />
+              </View>
+              <View style={styles.modeOptionContent}>
+                <Text style={styles.modeOptionTitle}>Receber</Text>
+                <Text style={styles.modeOptionDescription}>
+                  Receba SOL de outro dispositivo via NFC
+                </Text>
+                <Text style={styles.modeOptionNote}>
+                  Aguarda conexão do remetente
+                </Text>
+              </View>
+              <Text style={styles.modeOptionArrow}>→</Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Botões de ação */}
-        <View style={styles.actionButtons}>
+          {/* Instruções de uso */}
+          <View style={styles.instructionsContainer}>
+            <Text style={styles.instructionsTitle}>Como usar:</Text>
+            <View style={styles.instructionStep}>
+              <Text style={styles.instructionNumber}>1</Text>
+              <Text style={styles.instructionText}>
+                Escolha se você quer enviar ou receber SOL
+              </Text>
+            </View>
+            <View style={styles.instructionStep}>
+              <Text style={styles.instructionNumber}>2</Text>
+              <Text style={styles.instructionText}>
+                Mantenha os dispositivos próximos (até 4cm)
+              </Text>
+            </View>
+            <View style={styles.instructionStep}>
+              <Text style={styles.instructionNumber}>3</Text>
+              <Text style={styles.instructionText}>
+                Confirme os dados da transação quando solicitado
+              </Text>
+            </View>
+            <View style={styles.instructionStep}>
+              <Text style={styles.instructionNumber}>4</Text>
+              <Text style={styles.instructionText}>
+                Aguarde a confirmação na blockchain Solana
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ height: 40 }} />
+
+          {/* Status de conexão */}
           {!isConnected && (
             <View style={styles.warningContainer}>
               <Text style={styles.warningText}>
@@ -281,7 +271,10 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
               </Text>
             </View>
           )}
+        </ScrollView>
 
+        {/* BOTÃO FIXO NA PARTE INFERIOR */}
+        <View style={styles.fixedBottomContainer}>
           <TouchableOpacity 
             style={styles.secondaryButton}
             onPress={handleBackToHome}
@@ -289,7 +282,7 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
             <Text style={styles.secondaryButtonText}>Voltar</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 };
