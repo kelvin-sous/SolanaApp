@@ -1,6 +1,6 @@
 // ========================================
 // src/screens/main/NFCScreen/index.tsx
-// Tela de seleção NFC - ATUALIZADA: Sem ícone NFC e botão fixo
+// Tela de seleção NFC - CORRIGIDA: Com publicKey e session
 // ========================================
 
 import React, { useState, useEffect } from 'react';
@@ -30,7 +30,7 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
   const [currentMode, setCurrentMode] = useState<NFCMode>('selection');
   const [selectedMode, setSelectedMode] = useState<'send' | 'receive' | null>(null);
 
-  const { isConnected, publicKey } = usePhantom();
+  const { isConnected, publicKey, session } = usePhantom();
   const { balance } = useBalance(publicKey);
 
   // Verificar NFC ao montar o componente
@@ -71,7 +71,7 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
    * Navega para tela de envio
    */
   const handleSendMode = () => {
-    if (!isConnected) {
+    if (!isConnected || !publicKey) {
       Alert.alert('Erro', 'Não conectado com Phantom Wallet');
       return;
     }
@@ -93,7 +93,7 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
    * Navega para tela de recebimento
    */
   const handleReceiveMode = () => {
-    if (!isConnected) {
+    if (!isConnected || !publicKey) {
       Alert.alert('Erro', 'Não conectado com Phantom Wallet');
       return;
     }
@@ -120,19 +120,23 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
   };
 
   // Renderizar tela de envio
-  if (currentMode === 'send') {
+  if (currentMode === 'send' && publicKey) {
     return (
       <NFCSendScreen 
         onBack={handleBackToSelection}
+        publicKey={publicKey}
+        session={session}
       />
     );
   }
 
   // Renderizar tela de recebimento
-  if (currentMode === 'receive') {
+  if (currentMode === 'receive' && publicKey) {
     return (
       <NFCReceiveScreen 
         onBack={handleBackToSelection}
+        publicKey={publicKey}
+        session={session}
       />
     );
   }
@@ -142,7 +146,7 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#262728" />
       
-      {/* ✨ SCROLLVIEW COM FLEX PARA BOTÃO FIXO */}
+      {/* SCROLLVIEW COM FLEX PARA BOTÃO FIXO */}
       <View style={{ flex: 1 }}>
         <ScrollView 
           style={{ flex: 1 }}
@@ -180,10 +184,10 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
             <TouchableOpacity 
               style={[
                 styles.modeOptionButton,
-                !isConnected && styles.modeOptionButtonDisabled
+                (!isConnected || !publicKey) && styles.modeOptionButtonDisabled
               ]}
               onPress={handleSendMode}
-              disabled={!isConnected}
+              disabled={!isConnected || !publicKey}
             >
               <View style={styles.modeOptionIconContainer}>
                 <Image 
@@ -193,13 +197,23 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
                 />
               </View>
               <View style={styles.modeOptionContent}>
-                <Text style={styles.modeOptionTitle}>Enviar</Text>
+                <Text style={styles.modeOptionTitle}>📤 Enviar</Text>
                 <Text style={styles.modeOptionDescription}>
                   Envie SOL para outro dispositivo via NFC
                 </Text>
                 <Text style={styles.modeOptionNote}>
                   Requer saldo disponível
                 </Text>
+                {!isConnected && (
+                  <Text style={styles.modeOptionError}>
+                    ⚠️ Conecte-se com Phantom
+                  </Text>
+                )}
+                {isConnected && balance && balance.balance <= 0 && (
+                  <Text style={styles.modeOptionError}>
+                    ⚠️ Saldo insuficiente
+                  </Text>
+                )}
               </View>
               <Text style={styles.modeOptionArrow}>→</Text>
             </TouchableOpacity>
@@ -207,10 +221,10 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
             <TouchableOpacity 
               style={[
                 styles.modeOptionButton,
-                !isConnected && styles.modeOptionButtonDisabled
+                (!isConnected || !publicKey) && styles.modeOptionButtonDisabled
               ]}
               onPress={handleReceiveMode}
-              disabled={!isConnected}
+              disabled={!isConnected || !publicKey}
             >
               <View style={styles.modeOptionIconContainer}>
                 <Image 
@@ -220,13 +234,18 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
                 />
               </View>
               <View style={styles.modeOptionContent}>
-                <Text style={styles.modeOptionTitle}>Receber</Text>
+                <Text style={styles.modeOptionTitle}>📥 Receber</Text>
                 <Text style={styles.modeOptionDescription}>
                   Receba SOL de outro dispositivo via NFC
                 </Text>
                 <Text style={styles.modeOptionNote}>
                   Aguarda conexão do remetente
                 </Text>
+                {!isConnected && (
+                  <Text style={styles.modeOptionError}>
+                    ⚠️ Conecte-se com Phantom
+                  </Text>
+                )}
               </View>
               <Text style={styles.modeOptionArrow}>→</Text>
             </TouchableOpacity>
@@ -234,7 +253,7 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
 
           {/* Instruções de uso */}
           <View style={styles.instructionsContainer}>
-            <Text style={styles.instructionsTitle}>Como usar:</Text>
+            <Text style={styles.instructionsTitle}>Como usar transferências NFC:</Text>
             <View style={styles.instructionStep}>
               <Text style={styles.instructionNumber}>1</Text>
               <Text style={styles.instructionText}>
@@ -261,6 +280,17 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
             </View>
           </View>
 
+          {/* Informações de segurança */}
+          <View style={styles.securityContainer}>
+            <Text style={styles.securityTitle}>🔒 Segurança NFC:</Text>
+            <Text style={styles.securityText}>
+              • As transferências NFC usam a tecnologia de campo próximo{'\n'}
+              • Sempre verifique os dados antes de confirmar{'\n'}
+              • Mantenha os dispositivos próximos durante toda a operação{'\n'}
+              • As transações são processadas na blockchain Solana
+            </Text>
+          </View>
+
           <View style={{ height: 40 }} />
 
           {/* Status de conexão */}
@@ -268,6 +298,14 @@ const NFCScreen: React.FC<NFCScreenProps> = ({ onBack }) => {
             <View style={styles.warningContainer}>
               <Text style={styles.warningText}>
                 ⚠️ Conecte-se com Phantom Wallet para usar transferências NFC
+              </Text>
+            </View>
+          )}
+
+          {isConnected && (!balance || balance.balance <= 0) && (
+            <View style={styles.warningContainer}>
+              <Text style={styles.warningText}>
+                ℹ️ Você pode receber SOL, mas precisa de saldo para enviar
               </Text>
             </View>
           )}

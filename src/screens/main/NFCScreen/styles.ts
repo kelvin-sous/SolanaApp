@@ -14,7 +14,7 @@ export const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 20,
     paddingTop: 60,
-    paddingBottom: 100, // ✨ ESPAÇO PARA O BOTÃO FIXO
+    paddingBottom: 100, // ESPAÇO PARA O BOTÃO FIXO
   },
   header: {
     alignItems: 'flex-start',
@@ -27,11 +27,13 @@ export const styles = StyleSheet.create({
   },
   modeSelectorSingle: {
     marginBottom: 30,
+    alignItems: 'center',
   },
   modeButtonTextActive: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '700',
     color: '#FFFFFF',
+    textAlign: 'center',
   },
 
   // Card de informações da carteira
@@ -42,27 +44,38 @@ export const styles = StyleSheet.create({
     marginBottom: 30,
     borderWidth: 1,
     borderColor: '#444546',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   walletInfoLabel: {
     fontSize: 14,
     color: '#AAAAAA',
     marginBottom: 8,
+    fontWeight: '500',
   },
   walletInfoAddress: {
     fontSize: 16,
     color: '#FFFFFF',
     fontFamily: 'monospace',
     marginBottom: 8,
+    fontWeight: '600',
   },
   walletInfoBalance: {
     fontSize: 16,
     color: '#22c55e',
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 8,
   },
   walletInfoStatus: {
     fontSize: 14,
     color: '#AAAAAA',
+    fontWeight: '500',
   },
 
   // Opções de modo NFC
@@ -78,10 +91,20 @@ export const styles = StyleSheet.create({
     borderColor: '#444546',
     flexDirection: 'row',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
   },
   modeOptionButtonDisabled: {
     backgroundColor: '#2a2a2a',
     opacity: 0.6,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   modeOptionIconContainer: {
     width: 50,
@@ -102,7 +125,7 @@ export const styles = StyleSheet.create({
   },
   modeOptionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
   },
@@ -110,16 +133,24 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     color: '#AAAAAA',
     marginBottom: 4,
+    lineHeight: 20,
   },
   modeOptionNote: {
     fontSize: 12,
     color: '#AB9FF3',
     fontStyle: 'italic',
+    fontWeight: '500',
+  },
+  modeOptionError: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 4,
+    fontWeight: '600',
   },
   modeOptionArrow: {
     fontSize: 24,
     color: '#AB9FF3',
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
 
   // Instruções de uso
@@ -127,13 +158,13 @@ export const styles = StyleSheet.create({
     backgroundColor: '#373737',
     borderRadius: 16,
     padding: 20,
-    marginBottom: 30,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: '#444546',
   },
   instructionsTitle: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 16,
   },
@@ -151,35 +182,38 @@ export const styles = StyleSheet.create({
     lineHeight: 24,
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
     marginRight: 12,
   },
   instructionText: {
     flex: 1,
     fontSize: 14,
-    color: '#AAAAAA',
+    color: '#CCCCCC',
     lineHeight: 20,
+    fontWeight: '400',
   },
 
-  // ✨ REMOVIDO: nfcIconContainer, nfcIconLargeImage, nfcIconText
-  // (Comentado para referência)
-  /*
-  nfcIconContainer: {
-    alignItems: 'center',
-    marginVertical: 40,
+  // Informações de segurança
+  securityContainer: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#444546',
   },
-  nfcIconLargeImage: {
-    width: 120,
-    height: 120,
-    tintColor: '#FFFFFF',
-    marginBottom: 16,
+  securityTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 12,
   },
-  nfcIconText: {
-    fontSize: 14,
+  securityText: {
+    fontSize: 13,
     color: '#AAAAAA',
-    textAlign: 'center',
+    lineHeight: 18,
+    fontWeight: '400',
   },
-  */
 
   // Estilos existentes mantidos
   amountCard: {
@@ -237,14 +271,7 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // ✨ REMOVIDO: actionButtons (agora o botão é fixo)
-  /*
-  actionButtons: {
-    marginTop: 'auto',
-  },
-  */
-
-  // ✨ NOVO: Container fixo para o botão
+  // Container fixo para o botão
   fixedBottomContainer: {
     position: 'absolute',
     bottom: 0,
@@ -272,27 +299,37 @@ export const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginBottom: 12,
+    shadowColor: '#AB9FF3',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   secondaryButton: {
     backgroundColor: '#FFFFFF',
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#DDDDDD',
   },
   secondaryButtonText: {
     color: '#262728',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 
   // Aviso de conexão
   warningContainer: {
-    backgroundColor: '#f59e0b20',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -304,5 +341,6 @@ export const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 18,
+    fontWeight: '600',
   },
 });

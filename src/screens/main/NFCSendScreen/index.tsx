@@ -1,6 +1,6 @@
 // ========================================
 // src/screens/main/NFCSendScreen/index.tsx
-// Tela para enviar via NFC
+// Tela de envio via NFC - COMPLETA
 // ========================================
 
 import React, { useState, useEffect } from 'react';
@@ -10,499 +10,641 @@ import {
   TouchableOpacity,
   StatusBar,
   Image,
-  TextInput,
-  ScrollView,
   Alert,
-  ActivityIndicator
+  ScrollView,
+  TextInput,
+  BackHandler,
+  ViewStyle,
+  TextStyle,
+  ImageStyle,
 } from 'react-native';
-import { useNFC } from '../../../hooks/useNFC';
+import { PublicKey } from '@solana/web3.js';
 import { usePhantom } from '../../../hooks/usePhantom';
 import { useBalance } from '../../../hooks/useBalance';
+import { useTransfers } from '../../../hooks/useTransfers';
+import useNFC from '../../../hooks/useNFC';
+import NFCConnectionAnimation from '../../../components/NFC/NFCConnectionAnimation';
+import NFCStatusIndicator from '../../../components/NFC/NFCStatusIndicator';
 import SolanaService from '../../../services/solana/SolanaService';
-import { NFCTransactionResult } from '../../../services/nfc/NFCService';
+import RealtimePriceService from '../../../services/crypto/RealtimePriceService';
+import { NFCTransactionResult } from '../../../types/nfc';
+import { formatAddress, formatSOL, formatUSD } from '../../../utils/explorer';
+import { validateSolanaAddress, validateTransactionAmount } from '../../../constants/validation';
 import { styles } from './styles';
 
 interface NFCSendScreenProps {
-  onBack?: () => void;
-  initialAmount?: string;
-  receiverPublicKey?: string;
+  onBack: () => void;
+  publicKey: PublicKey;
+  session?: any;
 }
 
-const NFCSendScreen: React.FC<NFCSendScreenProps> = ({ 
-  onBack, 
-  initialAmount = '50,00',
-  receiverPublicKey = '' 
+const NFCSendScreen: React.FC<NFCSendScreenProps> = ({
+  onBack,
+  publicKey,
+  session
 }) => {
-  const [amount, setAmount] = useState(initialAmount);
-  const [receiverAddress, setReceiverAddress] = useState(receiverPublicKey);
-  const [equivalentSOL, setEquivalentSOL] = useState<number>(0);
-  const [isCalculatingSOL, setIsCalculatingSOL] = useState(false);
+  // ========================================
+  // HOOKS E ESTADO
+  // ========================================
+  
+  const { isConnected } = usePhantom();
+  const { balance, refreshBalance } = useBalance(publicKey);
+  const { saveTransfer, updateTransferStatus } = useTransfers(publicKey);
+  
+  const {
+    status,
+    message,
+    isActive,
+    error,
+    startSending,
+    stop,
+    clearError,
+    checkNFCStatus,
+    isNFCAvailable,
+    setOnTransactionComplete
+  } = useNFC();
 
-  const { isConnected, publicKey } = usePhantom();
-  const { balance } = useBalance(publicKey);
-  const { 
-    status, 
-    message, 
-    isActive, 
-    currentTransactionData,
-    estimatedFee,
-    startSending, 
-    stop, 
-    checkNFCStatus 
-  } = useNFC(handleTransactionComplete);
+  // Estado local
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [solAmount, setSolAmount] = useState('0.000000');
+  const [solPrice, setSolPrice] = useState(150);
+  const [memo, setMemo] = useState('');
+  const [isValidatingForm, setIsValidatingForm] = useState(false);
+  const [formErrors, setFormErrors] = useState<string[]>([]);
 
-  // Atualizar equivalente em SOL quando o valor muda
+  // ========================================
+  // EFFECTS
+  // ========================================
+
   useEffect(() => {
-    updateSOLEquivalent();
-  }, [amount]);
+    initializeScreen();
+    setupTransactionCompleteHandler();
+    setupBackHandler();
 
-  // Verificar NFC ao montar o componente
-  useEffect(() => {
-    verifyNFCStatus();
+    return () => {
+      // Cleanup ao desmontar
+      stop();
+    };
   }, []);
 
-  /**
-   * Atualiza valor equivalente em SOL
-   */
-  const updateSOLEquivalent = async () => {
+  useEffect(() => {
+    // Atualizar valor SOL quando USD ou preço muda
+    if (amount) {
+      const usdValue = parseFloat(amount) || 0;
+      const solValue = usdValue / solPrice;
+      setSolAmount(solValue.toFixed(6));
+    } else {
+      setSolAmount('0.000000');
+    }
+  }, [amount, solPrice]);
+
+  const initializeScreen = async () => {
     try {
-      const numericAmount = parseFloat(amount.replace(',', '.'));
-      if (numericAmount > 0) {
-        setIsCalculatingSOL(true);
-        const solanaService = SolanaService.getInstance();
-        const solAmount = await solanaService.convertUSDToSOL(numericAmount);
-        setEquivalentSOL(solAmount);
-      } else {
-        setEquivalentSOL(0);
+      // Verificar NFC
+      const nfcStatus = await checkNFCStatus();
+      if (!nfcStatus.supported || !nfcStatus.enabled) {
+        Alert.alert(
+          'NFC Não Disponível',
+          nfcStatus.error || 'NFC não está disponível neste dispositivo',
+          [{ text: 'OK', onPress: onBack }]
+        );
+        return;
       }
-    } catch (error) {
-      console.error('❌ Erro ao calcular equivalente SOL:', error);
-      setEquivalentSOL(0);
-    } finally {
-      setIsCalculatingSOL(false);
+
+      // Buscar preço do SOL
+      await fetchSOLPrice();
+    } catch (err) {
+      console.error('❌ Erro ao inicializar tela de envio:', err);
     }
   };
 
-  /**
-   * Verifica status do NFC
-   */
-  const verifyNFCStatus = async () => {
+  const fetchSOLPrice = async () => {
     try {
-      const nfcStatus = await checkNFCStatus();
-      if (!nfcStatus.supported) {
+      const priceService = RealtimePriceService.getInstance();
+      const prices = priceService.getCurrentPrices();
+      const solPriceData = prices.get('solana');
+      
+      if (solPriceData?.price) {
+        setSolPrice(solPriceData.price);
+        console.log('💰 Preço SOL em tempo real:', solPriceData.price);
+      } else {
+        // Fallback para SolanaService
+        const solanaService = SolanaService.getInstance();
+        const priceData = await solanaService.getSOLPrice();
+        setSolPrice(priceData.usd);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar preço SOL:', error);
+      setSolPrice(150); // Fallback
+    }
+  };
+
+  const setupTransactionCompleteHandler = () => {
+    setOnTransactionComplete(async (result: NFCTransactionResult) => {
+      try {
+        console.log('🎉 Transação NFC de envio concluída:', result);
+        
+        if (result.success && result.signature && result.transactionData) {
+          // Salvar no banco de dados
+          await saveTransfer({
+            transaction_signature: result.signature,
+            from_address: result.transactionData.senderPublicKey,
+            to_address: result.transactionData.receiverPublicKey,
+            amount_sol: result.transactionData.amountSOL,
+            amount_usd: result.transactionData.amount,
+            fee_sol: 0.000005,
+            status: 'confirmed',
+            transfer_type: 'send',
+            memo: result.transactionData.memo,
+            network: 'devnet'
+          });
+
+          // Atualizar saldo
+          await refreshBalance();
+
+          Alert.alert(
+            '🎉 Pagamento Enviado!',
+            `✅ Você enviou ${formatUSD(result.transactionData.amount)} (${formatSOL(result.transactionData.amountSOL)})!\n\n` +
+            `📧 Para: ${formatAddress(result.transactionData.receiverPublicKey)}\n` +
+            `🔗 Signature: ${result.signature.slice(0, 8)}...\n\n` +
+            `💰 Seu saldo foi atualizado.`,
+            [
+              {
+                text: 'Ver Explorer',
+                onPress: () => {
+                  console.log('🔗 Explorer URL:', `https://explorer.solana.com/tx/${result.signature}?cluster=devnet`);
+                }
+              },
+              {
+                text: 'Concluir',
+                onPress: () => {
+                  // Limpar formulário e voltar
+                  resetForm();
+                  onBack();
+                }
+              }
+            ]
+          );
+        }
+      } catch (err) {
+        console.error('❌ Erro ao processar transação completa:', err);
+      }
+    });
+  };
+
+  const setupBackHandler = () => {
+    const backAction = () => {
+      if (isActive) {
         Alert.alert(
-          'NFC não suportado',
-          'Este dispositivo não suporta NFC.',
-          [{ text: 'OK', onPress: handleVoltar }]
-        );
-      } else if (!nfcStatus.enabled) {
-        Alert.alert(
-          'NFC desabilitado',
-          'Por favor, habilite o NFC nas configurações do dispositivo.',
+          'Cancelar Operação NFC',
+          'Deseja realmente cancelar o envio NFC?',
           [
-            { text: 'Cancelar', onPress: handleVoltar },
-            { text: 'Configurações', onPress: () => {/* TODO: Abrir configurações */} }
+            { text: 'Não', style: 'cancel' },
+            { text: 'Sim', onPress: handleStop }
           ]
         );
+        return true;
       }
-    } catch (error) {
-      console.error('❌ Erro ao verificar NFC:', error);
-    }
+      return false;
+    };
+
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
+    return () => backHandler.remove();
   };
 
-  /**
-   * Callback quando transação é concluída
-   */
-  function handleTransactionComplete(result: NFCTransactionResult) {
-    if (result.success && result.signature) {
-      Alert.alert(
-        'Transferência Concluída! ✅',
-        `Transação enviada com sucesso!\n\nSignature: ${result.signature.slice(0, 8)}...\n\nValor: $${result.transactionData?.amount.toFixed(2)} (${result.transactionData?.amountSOL.toFixed(6)} SOL)`,
-        [
-          { 
-            text: 'Ver no Explorer', 
-            onPress: () => openTransactionExplorer(result.signature!) 
-          },
-          { text: 'OK', onPress: handleVoltar }
-        ]
-      );
+  // ========================================
+  // VALIDAÇÃO
+  // ========================================
+
+  const validateForm = (): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    // Validar conexão Phantom
+    if (!isConnected) {
+      errors.push('Phantom Wallet não conectado');
+    }
+
+    // Validar NFC
+    if (!isNFCAvailable) {
+      errors.push('NFC não está disponível');
+    }
+
+    // Validar destinatário
+    if (!recipient.trim()) {
+      errors.push('Digite o endereço do destinatário');
+    } else if (!validateSolanaAddress(recipient.trim())) {
+      errors.push('Endereço do destinatário inválido');
+    } else if (recipient.trim() === publicKey.toString()) {
+      errors.push('Não é possível enviar para si mesmo');
+    }
+
+    // Validar valor
+    const usdValue = parseFloat(amount) || 0;
+    const solValue = parseFloat(solAmount) || 0;
+    
+    if (!amount.trim() || usdValue <= 0) {
+      errors.push('Digite um valor válido');
     } else {
-      Alert.alert(
-        'Erro na Transferência ❌',
-        result.error || 'Erro desconhecido na transação',
-        [{ text: 'OK' }]
+      const amountErrors = validateTransactionAmount(usdValue, solValue);
+      errors.push(...amountErrors);
+    }
+
+    // Validar saldo
+    const availableBalance = balance?.balance || 0;
+    const estimatedFee = 0.000005;
+    const totalNeeded = solValue + estimatedFee;
+
+    if (availableBalance < totalNeeded) {
+      errors.push(
+        `Saldo insuficiente. Necessário: ${totalNeeded.toFixed(6)} SOL, Disponível: ${availableBalance.toFixed(6)} SOL`
       );
     }
-  }
 
-  /**
-   * Abre explorador de transações
-   */
-  const openTransactionExplorer = (signature: string) => {
-    // TODO: Implementar abertura do explorador
-    console.log('🔍 Abrir explorador para signature:', signature);
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
   };
 
-  /**
-   * Inicia processo de envio
-   */
-  const handleProcurarDispositivo = async () => {
+  // ========================================
+  // HANDLERS
+  // ========================================
+
+  const handleStartSending = async () => {
     try {
-      // Validações básicas
-      if (!isConnected) {
-        Alert.alert('Erro', 'Não conectado com Phantom Wallet');
-        return;
-      }
+      setIsValidatingForm(true);
+      
+      // Validar formulário
+      const validation = validateForm();
+      setFormErrors(validation.errors);
 
-      const numericAmount = parseFloat(amount.replace(',', '.'));
-      if (numericAmount <= 0) {
-        Alert.alert('Erro', 'Digite um valor válido maior que zero');
-        return;
-      }
-
-      if (!balance || balance.balance < equivalentSOL) {
+      if (!validation.isValid) {
         Alert.alert(
-          'Saldo Insuficiente',
-          `Você precisa de pelo menos ${equivalentSOL.toFixed(6)} SOL para esta transferência.\n\nSaldo atual: ${balance?.balance.toFixed(6) || '0'} SOL`
+          'Erro na Validação',
+          validation.errors.join('\n'),
+          [{ text: 'OK' }]
         );
         return;
       }
 
-      // Para modo NFC, usar endereço do dispositivo receptor
-      const targetAddress = receiverAddress.trim() || 'DISCOVERY_MODE';
-      
-      if (receiverAddress.trim() && !SolanaService.isValidAddress(receiverAddress)) {
-        Alert.alert('Erro', 'Endereço do destinatário inválido');
-        return;
-      }
+      // Confirmar operação
+      const usdValue = parseFloat(amount);
+      const solValue = parseFloat(solAmount);
+      const estimatedFee = 0.000005;
 
-      console.log('📤 Iniciando envio NFC:', { numericAmount, targetAddress });
-      await startSending(numericAmount, targetAddress);
-
-    } catch (error) {
-      console.error('❌ Erro ao iniciar envio:', error);
       Alert.alert(
-        'Erro',
-        error instanceof Error ? error.message : 'Erro ao iniciar transferência'
-      );
-    }
-  };
-
-  /**
-   * Cancela operação atual
-   */
-  const handleCancelar = async () => {
-    try {
-      await stop();
-    } catch (error) {
-      console.error('❌ Erro ao cancelar:', error);
-    }
-  };
-
-  /**
-   * Volta para tela anterior
-   */
-  const handleVoltar = () => {
-    if (isActive) {
-      Alert.alert(
-        'Operação em Andamento',
-        'Há uma transferência em andamento. Deseja cancelar?',
+        '💸 Confirmar Envio NFC',
+        `Você enviará:\n\n` +
+        `💰 Valor: ${formatUSD(usdValue)} (${formatSOL(solValue)})\n` +
+        `📧 Para: ${formatAddress(recipient.trim())}\n` +
+        `💸 Taxa: ${formatSOL(estimatedFee)}\n` +
+        `📋 Total: ${formatSOL(solValue + estimatedFee)}\n\n` +
+        `Aproxime o dispositivo do destinatário para continuar.`,
         [
-          { text: 'Não', style: 'cancel' },
-          { 
-            text: 'Sim, Cancelar', 
-            style: 'destructive',
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Confirmar',
             onPress: async () => {
-              await handleCancelar();
-              if (onBack) onBack();
+              try {
+                clearError();
+                await startSending(usdValue, recipient.trim());
+              } catch (err) {
+                console.error('❌ Erro ao iniciar envio:', err);
+                Alert.alert(
+                  'Erro',
+                  err instanceof Error ? err.message : 'Erro ao iniciar envio NFC'
+                );
+              }
             }
           }
         ]
       );
-    } else {
-      if (onBack) onBack();
+
+    } catch (err) {
+      console.error('❌ Erro na preparação do envio:', err);
+      Alert.alert('Erro', 'Erro ao preparar envio');
+    } finally {
+      setIsValidatingForm(false);
     }
   };
 
-  /**
-   * Formata valor monetário
-   */
-  const formatAmount = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    const amount = parseFloat(numbers) / 100;
-    return amount.toFixed(2).replace('.', ',');
-  };
-
-  /**
-   * Handler para mudança de valor
-   */
-  const handleAmountChange = (text: string) => {
-    const formatted = formatAmount(text);
-    setAmount(formatted);
-  };
-
-  /**
-   * Obtém texto do status atual
-   */
-  const getStatusText = () => {
-    switch (status) {
-      case 'SEARCHING':
-        return 'Procurando dispositivo...';
-      case 'CONNECTED':
-        return 'Dispositivo conectado!';
-      case 'SENDING_DATA':
-        return 'Enviando dados da transação...';
-      case 'PROCESSING_TRANSACTION':
-        return 'Processando transação...';
-      case 'SUCCESS':
-        return 'Transferência concluída!';
-      case 'ERROR':
-        return message || 'Erro na operação';
-      default:
-        return 'Mantenha próximo ao dispositivo';
+  const handleStop = async () => {
+    try {
+      await stop();
+      console.log('⏹️ Operação NFC cancelada');
+    } catch (err) {
+      console.error('❌ Erro ao parar NFC:', err);
     }
   };
 
-  /**
-   * Obtém cor do status
-   */
-  const getStatusColor = () => {
-    switch (status) {
-      case 'SUCCESS':
-        return '#22c55e';
-      case 'ERROR':
-        return '#ef4444';
-      case 'CONNECTED':
-      case 'PROCESSING_TRANSACTION':
-        return '#3b82f6';
-      default:
-        return '#797979';
-    }
+  const resetForm = () => {
+    setRecipient('');
+    setAmount('');
+    setSolAmount('0.000000');
+    setMemo('');
+    setFormErrors([]);
+    clearError();
   };
 
-  // Tela de operação ativa (procurando/enviando)
-  if (isActive) {
+  const handleRetry = () => {
+    clearError();
+    setFormErrors([]);
+  };
+
+  // ========================================
+  // RENDER HELPERS
+  // ========================================
+
+  const renderWalletInfo = () => (
+    <View style={styles.walletCard}>
+      <Text style={styles.walletLabel}>Sua Carteira</Text>
+      <Text style={styles.walletAddress}>
+        {formatAddress(publicKey.toString(), 12, 12)}
+      </Text>
+      <Text style={styles.walletBalance}>
+        💰 {formatSOL(balance?.balance || 0)}
+      </Text>
+    </View>
+  );
+
+  const renderSendForm = () => {
+    if (isActive) return null;
+
+    const hasErrors = formErrors.length > 0;
+    const isFormValid = validateForm().isValid;
+
     return (
-      <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#262728" />
-        
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={styles.header}>
-            <Image 
-              source={require('../../../../assets/icons/nfcBRANCO.png')}
-              style={styles.nfcHeaderIcon}
-              resizeMode="contain"
+      <View style={styles.formCard}>
+        <Text style={styles.formTitle}>Dados da Transferência</Text>
+
+        {/* Campo Destinatário */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Endereço do Destinatário</Text>
+          <TextInput
+            style={[
+              styles.textInput,
+              hasErrors && formErrors.some(e => e.includes('destinatário')) && styles.inputError
+            ]}
+            placeholder="Digite ou cole o endereço Solana"
+            placeholderTextColor="#666666"
+            value={recipient}
+            onChangeText={setRecipient}
+            autoCapitalize="none"
+            autoCorrect={false}
+            multiline={false}
+          />
+        </View>
+
+        {/* Campo Valor */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Valor a Enviar</Text>
+          <View style={styles.amountInputContainer}>
+            <Text style={styles.currencySymbol}>$</Text>
+            <TextInput
+              style={[
+                styles.amountInput,
+                hasErrors && formErrors.some(e => e.includes('valor')) && styles.inputError
+              ]}
+              placeholder="0.00"
+              placeholderTextColor="#666666"
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="decimal-pad"
+              selectTextOnFocus
             />
           </View>
+          <Text style={styles.solEquivalent}>
+            = {solAmount} SOL
+          </Text>
+        </View>
 
-          <View style={styles.modeSelectorSingle}>
-            <Text style={styles.modeButtonTextActive}>Enviar</Text>
-          </View>
+        {/* Campo Memo (Opcional) */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Memo (Opcional)</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Descrição da transferência"
+            placeholderTextColor="#666666"
+            value={memo}
+            onChangeText={setMemo}
+            maxLength={100}
+          />
+        </View>
 
-          <View style={styles.amountCard}>
-            <View style={styles.amountHeader}>
-              <Image 
-                source={require('../../../../assets/icons/solana.png')}
-                style={styles.solanaIcon}
-                resizeMode="contain"
-              />
+        {/* Resumo da Transação */}
+        {amount && recipient && isFormValid && (
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryTitle}>Resumo</Text>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Valor:</Text>
+              <Text style={styles.summaryValue}>{formatUSD(parseFloat(amount))}</Text>
             </View>
             
-            <View style={styles.amountInputContainer}>
-              <Text style={styles.currencySymbol}>$</Text>
-              <Text style={styles.amountInput}>{amount}</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Em SOL:</Text>
+              <Text style={styles.summaryValue}>{formatSOL(parseFloat(solAmount))}</Text>
             </View>
-
-            {/* Informações adicionais do valor */}
-            <View style={styles.equivalentInfo}>
-              <Text style={styles.equivalentSOLText}>
-                ≈ {equivalentSOL.toFixed(6)} SOL
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Taxa estimada:</Text>
+              <Text style={styles.summaryValue}>{formatSOL(0.000005)}</Text>
+            </View>
+            
+            <View style={[styles.summaryRow, styles.summaryTotal]}>
+              <Text style={styles.summaryTotalLabel}>Total:</Text>
+              <Text style={styles.summaryTotalValue}>
+                {formatSOL(parseFloat(solAmount) + 0.000005)}
               </Text>
-              {estimatedFee && (
-                <Text style={styles.feeText}>
-                  Taxa: ~{estimatedFee.toFixed(6)} SOL
-                </Text>
-              )}
             </View>
           </View>
+        )}
 
-          <View style={styles.nfcIconContainer}>
-            <View style={styles.nfcAnimationContainer}>
-              {status === 'PROCESSING_TRANSACTION' ? (
-                <ActivityIndicator size="large" color="#AB9FF3" />
-              ) : (
-                <Image 
-                  source={require('../../../../assets/icons/nfcCINZA.png')}
-                  style={styles.nfcIconSearchingImage}
-                  resizeMode="contain"
-                />
-              )}
-            </View>
-            
-            <Text style={[styles.searchingText, { color: getStatusColor() }]}>
-              {getStatusText()}
-            </Text>
-
-            {currentTransactionData && (
-              <View style={styles.transactionInfoContainer}>
-                <Text style={styles.transactionInfoTitle}>Dados da Transação:</Text>
-                <Text style={styles.transactionInfoText}>
-                  Valor: ${currentTransactionData.amount.toFixed(2)} ({currentTransactionData.amountSOL.toFixed(6)} SOL)
-                </Text>
-                <Text style={styles.transactionInfoText}>
-                  Para: {currentTransactionData.receiverPublicKey.slice(0, 8)}...
-                </Text>
-                <Text style={styles.transactionInfoText}>
-                  Preço SOL: ${currentTransactionData.solPrice.toFixed(2)}
-                </Text>
-              </View>
-            )}
+        {/* Erros de Validação */}
+        {hasErrors && (
+          <View style={styles.errorContainer}>
+            {formErrors.map((error, index) => (
+              <Text key={index} style={styles.errorText}>
+                ❌ {error}
+              </Text>
+            ))}
           </View>
-
-          <View style={styles.spacer} />
-
-          <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              style={styles.secondaryButton}
-              onPress={handleCancelar}
-              disabled={status === 'PROCESSING_TRANSACTION'}
-            >
-              <Text style={styles.secondaryButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+        )}
       </View>
     );
-  }
+  };
 
-  // Tela inicial de configuração
+  const renderNFCStatus = () => {
+    if (!isActive) return null;
+
+    return (
+      <View style={styles.nfcStatusContainer}>
+        {/* Animação NFC */}
+        <View style={styles.nfcAnimationContainer as ViewStyle}>
+          <NFCConnectionAnimation
+            status={status}
+            size="large"
+            showDevices={true}
+            showWaves={status === 'SEARCHING'}
+            showParticles={status === 'CONNECTED' || status === 'SENDING_DATA'}
+            deviceDistance={status === 'CONNECTED' ? 20 : 60}
+          />
+        </View>
+
+        {/* Indicador de Status */}
+        <NFCStatusIndicator
+          status={status}
+          message={message}
+          size="medium"
+          showMessage={true}
+          showIcon={false}
+          animated={true}
+        />
+
+        {/* Instruções baseadas no status */}
+        {status === 'SEARCHING' && (
+          <Text style={styles.instructionText}>
+            Aproxime o dispositivo do destinatário...
+          </Text>
+        )}
+
+        {status === 'CONNECTED' && (
+          <Text style={styles.instructionText}>
+            Dispositivo conectado! Enviando dados...
+          </Text>
+        )}
+
+        {status === 'SENDING_DATA' && (
+          <Text style={styles.instructionText}>
+            Enviando dados da transação...
+          </Text>
+        )}
+
+        {status === 'SUCCESS' && (
+          <Text style={styles.successText}>
+            ✅ Dados enviados com sucesso!
+          </Text>
+        )}
+      </View>
+    );
+  };
+
+  const renderErrorState = () => {
+    if (!error) return null;
+
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>
+          ❌ {error}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderActionButtons = () => {
+    const validation = validateForm();
+    const canStart = validation.isValid && !isActive;
+    const showStop = isActive;
+
+    return (
+      <View style={styles.actionButtons}>
+        {!showStop ? (
+          <TouchableOpacity
+            style={[
+              styles.primaryButton,
+              !canStart && styles.primaryButtonDisabled
+            ]}
+            onPress={error ? handleRetry : handleStartSending}
+            disabled={(!canStart && !error) || isValidatingForm}
+          >
+            <Text style={styles.primaryButtonText}>
+              {error ? 'Tentar Novamente' : '📡 Iniciar Envio NFC'}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={handleStop}
+          >
+            <Text style={styles.primaryButtonText}>
+              ⏹️ Cancelar Envio
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={onBack}
+          disabled={isActive}
+        >
+          <Text style={styles.secondaryButtonText}>
+            Voltar
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  const renderStatusInfo = () => (
+    <View style={styles.statusInfo}>
+      <Text style={styles.statusInfoText}>
+        NFC: {isNFCAvailable ? '✅ Disponível' : '❌ Indisponível'} • 
+        Phantom: {isConnected ? '✅ Conectado' : '❌ Desconectado'}
+      </Text>
+      <Text style={styles.statusInfoText}>
+        Preço SOL: {formatUSD(solPrice)}/SOL
+      </Text>
+    </View>
+  );
+
+  // ========================================
+  // RENDER PRINCIPAL
+  // ========================================
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#262728" />
       
       <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+        style={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
       >
+        {/* Header */}
         <View style={styles.header}>
-          <Image 
+          <Image
             source={require('../../../../assets/icons/nfcBRANCO.png')}
-            style={styles.nfcHeaderIcon}
+            style={styles.nfcHeaderIcon as ImageStyle}
             resizeMode="contain"
           />
         </View>
 
-        <View style={styles.modeSelectorSingle}>
-          <Text style={styles.modeButtonTextActive}>Enviar</Text>
-        </View>
-
-        <View style={styles.amountCard}>
-          <View style={styles.amountHeader}>
-            <Image 
-              source={require('../../../../assets/icons/solana.png')}
-              style={styles.solanaIcon}
-              resizeMode="contain"
-            />
-            {/* Informações de saldo */}
-            <View style={styles.balanceInfo}>
-              <Text style={styles.balanceLabel}>Saldo disponível:</Text>
-              <Text style={styles.balanceValue}>
-                {balance ? `${balance.balance.toFixed(6)} SOL` : 'Carregando...'}
-              </Text>
-            </View>
-          </View>
-          
-          <View style={styles.amountInputContainer}>
-            <Text style={styles.currencySymbol}>$</Text>
-            <TextInput
-              style={styles.amountInput}
-              value={amount}
-              onChangeText={handleAmountChange}
-              keyboardType="numeric"
-              placeholder="0,00"
-              placeholderTextColor="#666"
-            />
-          </View>
-
-          {/* Equivalente em SOL */}
-          <View style={styles.equivalentInfo}>
-            {isCalculatingSOL ? (
-              <ActivityIndicator size="small" color="#AB9FF3" />
-            ) : (
-              <>
-                <Text style={styles.equivalentSOLText}>
-                  ≈ {equivalentSOL.toFixed(6)} SOL
-                </Text>
-                {estimatedFee && (
-                  <Text style={styles.feeText}>
-                    Taxa estimada: ~{estimatedFee.toFixed(6)} SOL
-                  </Text>
-                )}
-              </>
-            )}
-          </View>
-        </View>
-
-        {/* Campo opcional para endereço do destinatário */}
-        <View style={styles.receiverCard}>
-          <Text style={styles.receiverLabel}>
-            Destinatário (opcional - pode ser descoberto via NFC):
+        {/* Título */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>
+            📤 Enviar via NFC
           </Text>
-          <TextInput
-            style={styles.receiverInput}
-            value={receiverAddress}
-            onChangeText={setReceiverAddress}
-            placeholder="Endereço da wallet Solana..."
-            placeholderTextColor="#666"
-            multiline
-            numberOfLines={3}
-          />
         </View>
 
-        <View style={styles.nfcIconContainer}>
-          <Image 
-            source={require('../../../../assets/icons/nfcBRANCO2.png')}
-            style={styles.nfcIconLargeImage}
-            resizeMode="contain"
-          />
-        </View>
+        {/* Informações da carteira */}
+        {renderWalletInfo()}
 
+        {/* Formulário ou Status NFC */}
+        {isActive ? renderNFCStatus() : renderSendForm()}
+
+        {/* Estado de erro */}
+        {renderErrorState()}
+
+        {/* Spacer para empurrar botões para baixo */}
         <View style={styles.spacer} />
 
-        <View style={styles.actionButtons}>
-          <TouchableOpacity 
-            style={[
-              styles.primaryButton,
-              (!isConnected || !balance || parseFloat(amount.replace(',', '.')) <= 0) && styles.primaryButtonDisabled
-            ]}
-            onPress={handleProcurarDispositivo}
-            disabled={!isConnected || !balance || parseFloat(amount.replace(',', '.')) <= 0}
-          >
-            <Text style={styles.primaryButtonText}>Procurar dispositivo</Text>
-          </TouchableOpacity>
+        {/* Botões de ação */}
+        {renderActionButtons()}
 
-          <TouchableOpacity 
-            style={styles.secondaryButton}
-            onPress={handleVoltar}
-          >
-            <Text style={styles.secondaryButtonText}>Voltar</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Status de conexão */}
-        <View style={styles.statusInfo}>
-          <Text style={styles.statusInfoText}>
-            Status: {isConnected ? '🟢 Conectado' : '🔴 Desconectado'}
-          </Text>
-          {!isConnected && (
-            <Text style={styles.statusWarning}>
-              Conecte-se com Phantom Wallet para continuar
-            </Text>
-          )}
-        </View>
+        {/* Informações de status */}
+        {renderStatusInfo()}
       </ScrollView>
     </View>
   );

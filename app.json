@@ -36,7 +36,8 @@
         ],
         "LSApplicationQueriesSchemes": [
           "phantom"
-        ]
+        ],
+        "NFCReaderUsageDescription": "Este app usa NFC para transferências seguras de Solana entre dispositivos."
       },
       "associatedDomains": [
         "applinks:kelvin-sous.github.io"
@@ -61,11 +62,41 @@
             "BROWSABLE",
             "DEFAULT"
           ]
+        },
+        {
+          "action": "android.nfc.action.NDEF_DISCOVERED",
+          "data": [
+            {
+              "mimeType": "text/plain"
+            }
+          ],
+          "category": [
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "android.nfc.action.TAG_DISCOVERED",
+          "category": [
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "android.nfc.action.NDEF_DISCOVERED",
+          "data": [
+            {
+              "mimeType": "application/solana-transaction"
+            }
+          ],
+          "category": [
+            "DEFAULT"
+          ]
         }
       ],
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.NFC",
+        "android.permission.INTERNET"
       ]
     },
     "web": {

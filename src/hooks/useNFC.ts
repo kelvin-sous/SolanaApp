@@ -1,256 +1,430 @@
 // ========================================
 // src/hooks/useNFC.ts
-// Hook para gerenciar transferências via NFC
+// Hook para gerenciar operações NFC REAIS
 // ========================================
 
-import { useState, useCallback, useRef } from 'react';
-import NFCService, { 
-  NFCTransactionStatus, 
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Alert } from 'react-native';
+import { PublicKey } from '@solana/web3.js';
+import NFCService, { NFCStatusCallback } from '../services/nfc/NFCService';
+import PhantomService from '../services/phantom/PhantomService';
+import SolanaService from '../services/solana/SolanaService';
+import { 
   NFCTransactionData, 
-  NFCTransactionResult,
-  NFCStatusCallback 
-} from '../services/nfc/NFCService';
+  NFCOperationStatus, 
+  NFCTransactionResult
+} from '../types/nfc';
 import { usePhantom } from './usePhantom';
 
+// ========================================
+// INTERFACES DO HOOK
+// ========================================
+
 export interface UseNFCReturn {
-  // Estados
-  status: NFCTransactionStatus;
+  // Status
+  status: NFCOperationStatus;
   message: string | null;
   isActive: boolean;
+  error: string | null;
+  
+  // Dados da transação atual
   currentTransactionData: NFCTransactionData | null;
   estimatedFee: number | null;
+  confirmationRequired: boolean;
   
-  // Métodos de envio
+  // Funções principais
   startSending: (amountUSD: number, receiverPublicKey: string) => Promise<void>;
-  
-  // Métodos de recebimento
   startReceiving: () => Promise<void>;
   confirmTransaction: (accept: boolean) => Promise<void>;
-  
-  // Controles
   stop: () => Promise<void>;
-  checkNFCStatus: () => Promise<{ supported: boolean; enabled: boolean; error?: string }>;
+  clearError: () => void;
   
-  // Callbacks
-  onTransactionComplete?: (result: NFCTransactionResult) => void;
+  // Verificações
+  checkNFCStatus: () => Promise<{ supported: boolean; enabled: boolean; error?: string }>;
+  isNFCAvailable: boolean;
+  
+  // Callbacks configuráveis
+  setOnTransactionComplete: (callback: (result: NFCTransactionResult) => void) => void;
 }
 
-export const useNFC = (
-  onTransactionComplete?: (result: NFCTransactionResult) => void
-): UseNFCReturn => {
-  const [status, setStatus] = useState<NFCTransactionStatus>('IDLE');
+export const useNFC = (): UseNFCReturn => {
+  // ========================================
+  // ESTADO LOCAL
+  // ========================================
+  
+  const [status, setStatus] = useState<NFCOperationStatus>('IDLE');
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [currentTransactionData, setCurrentTransactionData] = useState<NFCTransactionData | null>(null);
   const [estimatedFee, setEstimatedFee] = useState<number | null>(null);
-  const [isActive, setIsActive] = useState(false);
-
-  const { session, isConnected } = usePhantom();
+  const [confirmationRequired, setConfirmationRequired] = useState(false);
+  const [isNFCAvailable, setIsNFCAvailable] = useState(false);
+  
+  // ========================================
+  // REFS E SERVIÇOS
+  // ========================================
+  
   const nfcService = NFCService.getInstance();
-  const callbackRef = useRef<NFCStatusCallback | null>(null);
-
-  // Criar callback para o NFCService
-  const createNFCCallback = useCallback((): NFCStatusCallback => {
-    return {
-      onStatusChange: (newStatus: NFCTransactionStatus, newMessage?: string) => {
-        console.log('📡 NFC Status:', newStatus, newMessage);
-        setStatus(newStatus);
-        setMessage(newMessage || null);
-        
-        // Atualizar estado ativo
-        setIsActive(newStatus !== 'IDLE' && newStatus !== 'SUCCESS' && newStatus !== 'ERROR');
-      },
-      
-      onDataReceived: (data: NFCTransactionData) => {
-        console.log('📨 Dados recebidos via NFC:', data);
-        setCurrentTransactionData(data);
-      },
-      
-      onTransactionComplete: (result: NFCTransactionResult) => {
-        console.log('✅ Transação NFC concluída:', result);
-        setCurrentTransactionData(null);
-        setIsActive(false);
-        
-        if (onTransactionComplete) {
-          onTransactionComplete(result);
-        }
-      }
+  const { isConnected, publicKey, session } = usePhantom();
+  const onTransactionCompleteRef = useRef<((result: NFCTransactionResult) => void) | null>(null);
+  
+  // ========================================
+  // INICIALIZAÇÃO
+  // ========================================
+  
+  useEffect(() => {
+    initializeNFC();
+    return () => {
+      // Cleanup ao desmontar
+      nfcService.stop().catch(console.error);
     };
-  }, [onTransactionComplete]);
+  }, []);
 
-  // Estimar taxa da transação
-  const estimateTransactionFee = useCallback(async () => {
+  const initializeNFC = async () => {
     try {
-      const fee = await nfcService.estimateTransactionFee();
-      setEstimatedFee(fee);
-      return fee;
-    } catch (error) {
-      console.error('❌ Erro ao estimar taxa:', error);
-      setEstimatedFee(0.000005); // Fallback
-      return 0.000005;
+      const nfcStatus = await nfcService.checkNFCStatus();
+      setIsNFCAvailable(nfcStatus.supported && nfcStatus.enabled);
+      
+      if (!nfcStatus.supported || !nfcStatus.enabled) {
+        setError(nfcStatus.error || 'NFC não disponível');
+      }
+    } catch (err) {
+      console.error('❌ Erro ao inicializar NFC:', err);
+      setError('Erro ao verificar NFC');
+      setIsNFCAvailable(false);
     }
-  }, [nfcService]);
+  };
 
-  // Iniciar envio
-  const startSending = useCallback(async (
-    amountUSD: number, 
-    receiverPublicKey: string
-  ): Promise<void> => {
+  // ========================================
+  // CALLBACKS DO NFC SERVICE
+  // ========================================
+  
+  const createNFCCallback = useCallback((): NFCStatusCallback => ({
+    onStatusChange: (newStatus: NFCOperationStatus, newMessage?: string) => {
+      console.log(`📡 NFC Status mudou: ${newStatus}${newMessage ? ` - ${newMessage}` : ''}`);
+      setStatus(newStatus);
+      setMessage(newMessage || null);
+      
+      // Limpar erro quando operação inicia com sucesso
+      if (newStatus === 'SEARCHING' || newStatus === 'CONNECTED') {
+        setError(null);
+      }
+      
+      // Definir erro quando operação falha
+      if (newStatus === 'ERROR') {
+        setError(newMessage || 'Erro na operação NFC');
+      }
+    },
+    
+    onDataReceived: (data: NFCTransactionData) => {
+      console.log('📨 Dados recebidos via NFC REAL:', {
+        amount: data.amount,
+        from: data.senderPublicKey.slice(0, 8) + '...',
+        to: data.receiverPublicKey.slice(0, 8) + '...'
+      });
+      
+      setCurrentTransactionData(data);
+      setEstimatedFee(0.000005); // Taxa padrão SOL
+      setConfirmationRequired(true);
+      setMessage('Transação recebida! Verifique os dados antes de confirmar.');
+    },
+    
+    onTransactionComplete: (result: NFCTransactionResult) => {
+      console.log('🎉 Transação NFC REAL concluída:', result);
+      
+      // Chamar callback personalizado se definido
+      if (onTransactionCompleteRef.current) {
+        onTransactionCompleteRef.current(result);
+      }
+      
+      // Limpar estado
+      setCurrentTransactionData(null);
+      setConfirmationRequired(false);
+      setEstimatedFee(null);
+    },
+    
+    onError: (errorMessage: string) => {
+      console.error('❌ Erro NFC REAL:', errorMessage);
+      setError(errorMessage);
+      setStatus('ERROR');
+      setMessage(null);
+    }
+  }), []);
+
+  // ========================================
+  // FUNÇÃO DE ENVIO REAL
+  // ========================================
+  
+  const startSending = useCallback(async (amountUSD: number, receiverPublicKey: string): Promise<void> => {
     try {
-      if (!isConnected || !session) {
-        throw new Error('Não conectado com Phantom Wallet');
+      console.log('🚀 Iniciando envio NFC REAL...', { amountUSD, receiverPublicKey: receiverPublicKey.slice(0, 8) + '...' });
+      
+      // Validações pré-operação
+      if (!isConnected || !publicKey || !session) {
+        throw new Error('Phantom Wallet não conectado');
       }
-
-      if (isActive) {
-        throw new Error('Operação NFC já está ativa');
+      
+      if (!isNFCAvailable) {
+        throw new Error('NFC não está disponível');
       }
-
-      // Validar inputs
+      
       if (amountUSD <= 0) {
         throw new Error('Valor deve ser maior que zero');
       }
-
-      if (!receiverPublicKey.trim()) {
-        throw new Error('Endereço do destinatário é obrigatório');
+      
+      try {
+        new PublicKey(receiverPublicKey);
+      } catch {
+        throw new Error('Endereço do destinatário inválido');
       }
-
-      console.log('🚀 Iniciando envio NFC:', { amountUSD, receiverPublicKey });
-
-      // Estimar taxa
-      await estimateTransactionFee();
-
-      // Criar callback
+      
+      // Limpar estado anterior
+      setError(null);
+      setCurrentTransactionData(null);
+      setConfirmationRequired(false);
+      
+      // Criar callback e iniciar envio REAL
       const callback = createNFCCallback();
-      callbackRef.current = callback;
-
-      // Iniciar processo de envio
       await nfcService.startSending(amountUSD, receiverPublicKey, callback);
-
-    } catch (error) {
-      console.error('❌ Erro ao iniciar envio:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('❌ Erro ao iniciar envio NFC REAL:', errorMessage);
+      setError(errorMessage);
       setStatus('ERROR');
-      setMessage(errorMessage);
-      setIsActive(false);
-      throw error;
+      
+      Alert.alert(
+        'Erro no Envio NFC',
+        errorMessage,
+        [{ text: 'OK', style: 'default' }]
+      );
     }
-  }, [isConnected, session, isActive, createNFCCallback, estimateTransactionFee]);
+  }, [isConnected, publicKey, session, isNFCAvailable, createNFCCallback]);
 
-  // Iniciar recebimento
+  // ========================================
+  // FUNÇÃO DE RECEBIMENTO REAL
+  // ========================================
+  
   const startReceiving = useCallback(async (): Promise<void> => {
     try {
-      if (!isConnected || !session) {
-        throw new Error('Não conectado com Phantom Wallet');
+      console.log('📥 Iniciando recebimento NFC REAL...');
+      
+      // Validações pré-operação
+      if (!isConnected || !publicKey) {
+        throw new Error('Phantom Wallet não conectado');
       }
-
-      if (isActive) {
-        throw new Error('Operação NFC já está ativa');
+      
+      if (!isNFCAvailable) {
+        throw new Error('NFC não está disponível');
       }
-
-      console.log('📡 Iniciando recebimento NFC...');
-
-      // Estimar taxa
-      await estimateTransactionFee();
-
-      // Criar callback
+      
+      // Limpar estado anterior
+      setError(null);
+      setCurrentTransactionData(null);
+      setConfirmationRequired(false);
+      
+      // Criar callback e iniciar recebimento REAL
       const callback = createNFCCallback();
-      callbackRef.current = callback;
-
-      // Iniciar processo de recebimento
       await nfcService.startReceiving(callback);
-
-    } catch (error) {
-      console.error('❌ Erro ao iniciar recebimento:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
+      console.error('❌ Erro ao iniciar recebimento NFC REAL:', errorMessage);
+      setError(errorMessage);
       setStatus('ERROR');
-      setMessage(errorMessage);
-      setIsActive(false);
-      throw error;
+      
+      Alert.alert(
+        'Erro no Recebimento NFC',
+        errorMessage,
+        [{ text: 'OK', style: 'default' }]
+      );
     }
-  }, [isConnected, session, isActive, createNFCCallback, estimateTransactionFee]);
+  }, [isConnected, publicKey, isNFCAvailable, createNFCCallback]);
 
-  // Confirmar transação
+  // ========================================
+  // CONFIRMAÇÃO DE TRANSAÇÃO REAL
+  // ========================================
+  
   const confirmTransaction = useCallback(async (accept: boolean): Promise<void> => {
     try {
       if (!currentTransactionData) {
-        throw new Error('Nenhuma transação pendente para confirmar');
+        throw new Error('Nenhuma transação para confirmar');
       }
-
-      console.log('🔐 Confirmando transação:', accept ? 'ACEITA' : 'REJEITADA');
-
-      await nfcService.confirmReceiving(accept);
-
+      
       if (!accept) {
+        console.log('❌ Usuário rejeitou a transação');
         setCurrentTransactionData(null);
-        setStatus('IDLE');
-        setMessage(null);
-        setIsActive(false);
+        setConfirmationRequired(false);
+        setStatus('CANCELLED');
+        setMessage('Transação cancelada pelo usuário');
+        return;
+      }
+      
+      console.log('✅ Usuário aceitou a transação, executando via Phantom...');
+      setStatus('PROCESSING_TRANSACTION');
+      setMessage('Processando transação via Phantom...');
+      
+      // Executar transação REAL via Phantom
+      await executeRealTransaction(currentTransactionData);
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro na confirmação';
+      console.error('❌ Erro ao confirmar transação REAL:', errorMessage);
+      setError(errorMessage);
+      setStatus('ERROR');
+      
+      Alert.alert(
+        'Erro na Transação',
+        errorMessage,
+        [{ text: 'OK', style: 'default' }]
+      );
+    } finally {
+      setCurrentTransactionData(null);
+      setConfirmationRequired(false);
+      setEstimatedFee(null);
+    }
+  }, [currentTransactionData]);
+
+  // ========================================
+  // EXECUÇÃO DE TRANSAÇÃO REAL
+  // ========================================
+  
+  const executeRealTransaction = async (data: NFCTransactionData): Promise<void> => {
+    try {
+      console.log('💳 Executando transação REAL via Phantom...');
+      
+      if (!session || !publicKey) {
+        throw new Error('Sessão Phantom não encontrada');
       }
 
-    } catch (error) {
-      console.error('❌ Erro ao confirmar transação:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      setStatus('ERROR');
-      setMessage(errorMessage);
-      setIsActive(false);
-      throw error;
-    }
-  }, [currentTransactionData, nfcService]);
+      // Obter serviços
+      const phantomService = PhantomService.getInstance();
+      const solanaService = SolanaService.getInstance();
+      const connection = solanaService.getConnection();
 
-  // Parar operação
+      // Criar transação Solana
+      const { Transaction, SystemProgram, LAMPORTS_PER_SOL } = await import('@solana/web3.js');
+      
+      const fromPubkey = new PublicKey(data.receiverPublicKey); // Quem recebe é o usuário atual
+      const toPubkey = new PublicKey(data.senderPublicKey);     // Pagamento para o remetente original
+      const lamports = Math.floor(data.amountSOL * LAMPORTS_PER_SOL);
+
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey,
+          toPubkey,
+          lamports,
+        })
+      );
+
+      // Configurar transação
+      const { blockhash } = await connection.getLatestBlockhash();
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = fromPubkey;
+
+      // Executar via Phantom
+      const signature = await phantomService.executeTransaction(transaction);
+      
+      console.log('✅ Transação REAL concluída:', signature);
+      
+      setStatus('SUCCESS');
+      setMessage('Transação concluída com sucesso!');
+      
+      const result: NFCTransactionResult = {
+        success: true,
+        signature: signature,
+        transactionData: data
+      };
+      
+      // Chamar callback se definido
+      if (onTransactionCompleteRef.current) {
+        onTransactionCompleteRef.current(result);
+      }
+      
+    } catch (error) {
+      console.error('❌ Erro na execução da transação REAL:', error);
+      throw new Error(`Falha na transação: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
+  };
+
+  // ========================================
+  // FUNÇÕES UTILITÁRIAS
+  // ========================================
+  
   const stop = useCallback(async (): Promise<void> => {
     try {
-      console.log('⏹️ Parando operação NFC...');
-      
+      console.log('⏹️ Parando operação NFC REAL...');
       await nfcService.stop();
       
-      setStatus('IDLE');
-      setMessage(null);
       setCurrentTransactionData(null);
-      setIsActive(false);
-      callbackRef.current = null;
+      setConfirmationRequired(false);
+      setEstimatedFee(null);
+      setMessage(null);
       
-      console.log('✅ Operação NFC parada');
-    } catch (error) {
-      console.error('❌ Erro ao parar NFC:', error);
-      // Mesmo com erro, resetar o estado
-      setStatus('IDLE');
-      setMessage(null);
-      setCurrentTransactionData(null);
-      setIsActive(false);
-      callbackRef.current = null;
+    } catch (err) {
+      console.error('❌ Erro ao parar NFC:', err);
     }
-  }, [nfcService]);
+  }, []);
 
-  // Verificar status do NFC
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
   const checkNFCStatus = useCallback(async () => {
     try {
-      return await nfcService.checkNFCStatus();
-    } catch (error) {
-      console.error('❌ Erro ao verificar status NFC:', error);
+      const status = await nfcService.checkNFCStatus();
+      setIsNFCAvailable(status.supported && status.enabled);
+      return status;
+    } catch (err) {
+      console.error('❌ Erro ao verificar status NFC:', err);
       return {
         supported: false,
         enabled: false,
-        error: error instanceof Error ? error.message : 'Erro desconhecido'
+        error: 'Erro ao verificar NFC'
       };
     }
-  }, [nfcService]);
+  }, []);
 
+  const setOnTransactionComplete = useCallback((callback: (result: NFCTransactionResult) => void) => {
+    onTransactionCompleteRef.current = callback;
+  }, []);
+
+  // ========================================
+  // ESTADO COMPUTADO
+  // ========================================
+  
+  const isActive = status !== 'IDLE' && status !== 'SUCCESS' && status !== 'ERROR' && status !== 'CANCELLED';
+
+  // ========================================
+  // RETURN DO HOOK
+  // ========================================
+  
   return {
-    // Estados
+    // Status
     status,
     message,
     isActive,
+    error,
+    
+    // Dados da transação
     currentTransactionData,
     estimatedFee,
+    confirmationRequired,
     
-    // Métodos
+    // Funções principais
     startSending,
     startReceiving,
     confirmTransaction,
     stop,
-    checkNFCStatus,
+    clearError,
     
-    // Callback
-    onTransactionComplete
+    // Verificações
+    checkNFCStatus,
+    isNFCAvailable,
+    
+    // Callbacks
+    setOnTransactionComplete
   };
 };
+
+export default useNFC;

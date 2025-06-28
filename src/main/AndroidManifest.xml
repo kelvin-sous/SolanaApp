@@ -1,17 +1,24 @@
 <!-- ========================================
-     Configuração AndroidManifest.xml para NFC
+     AndroidManifest.xml CORRIGIDO para NFC
      Arquivo: android/app/src/main/AndroidManifest.xml
      ======================================== -->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   
-  <!-- Permissões necessárias -->
+  <!-- ✅ PERMISSÕES NECESSÁRIAS -->
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.NFC" />
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
   
-  <!-- Features opcionais -->
+  <!-- ✅ FEATURES NFC -->
   <uses-feature
       android:name="android.hardware.nfc"
+      android:required="false" />
+  
+  <!-- ✅ FEATURE CAMERA (para QR Code) -->
+  <uses-feature
+      android:name="android.hardware.camera"
       android:required="false" />
       
   <application
@@ -31,34 +38,43 @@
       android:hardwareAccelerated="true"
       android:windowSoftInputMode="adjustResize">
       
-      <!-- Intent filter principal -->
+      <!-- ✅ INTENT FILTER PRINCIPAL -->
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
       
-      <!-- Intent filter para deep links do Phantom -->
+      <!-- ✅ DEEP LINKS PARA PHANTOM (scheme correto) -->
       <intent-filter android:autoVerify="true">
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
         <category android:name="android.intent.category.BROWSABLE" />
-        <data android:scheme="exp" />
+        <data android:scheme="solanawallet" />
       </intent-filter>
       
-      <!-- Intent filter para NFC - NDEF descoberto -->
+      <!-- ✅ NFC - NDEF DESCOBERTO (dados de texto) -->
       <intent-filter>
         <action android:name="android.nfc.action.NDEF_DISCOVERED" />
         <category android:name="android.intent.category.DEFAULT" />
         <data android:mimeType="text/plain" />
       </intent-filter>
       
-      <!-- Intent filter para NFC - TAG descoberto (fallback) -->
+      <!-- ✅ NFC - TAG DESCOBERTO (fallback geral) -->
       <intent-filter>
         <action android:name="android.nfc.action.TAG_DISCOVERED" />
         <category android:name="android.intent.category.DEFAULT" />
       </intent-filter>
       
-      <!-- Intent filter para transações Solana via NFC -->
+      <!-- ✅ NFC - TECH DESCOBERTO (para diferentes tecnologias) -->
+      <intent-filter>
+        <action android:name="android.nfc.action.TECH_DISCOVERED" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <meta-data 
+          android:name="android.nfc.action.TECH_DISCOVERED"
+          android:resource="@xml/nfc_tech_filter" />
+      </intent-filter>
+      
+      <!-- ✅ NFC - TRANSAÇÕES SOLANA ESPECÍFICAS -->
       <intent-filter>
         <action android:name="android.nfc.action.NDEF_DISCOVERED" />
         <category android:name="android.intent.category.DEFAULT" />
@@ -69,14 +85,3 @@
   </application>
 </manifest>
 
-<!-- ========================================
-     INSTRUÇÕES DE IMPLEMENTAÇÃO:
-     
-     1. Copie o conteúdo acima para seu AndroidManifest.xml
-     2. Mantenha as configurações existentes do seu app
-     3. Certifique-se de que o android:scheme="exp" corresponde ao seu scheme
-     4. Teste em dispositivo físico (NFC não funciona em emulador)
-     
-     NOTA: Se você estiver usando Expo managed workflow,
-     essas configurações devem estar no app.json/app.config.js
-     ======================================== -->
