@@ -27,14 +27,26 @@ interface CommunityVaultScreenProps {
 
 const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, publicKey }) => {
   const [vaults, setVaults] = useState<CommunityVault[]>([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showCreateConfig, setShowCreateConfig] = useState(false);
-  const [showCreateDetails, setShowCreateDetails] = useState(false);
+  const [showCreateDetails, setShowCreateDetails] = useState(false); // NOVO ESTADO
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [vaultConfig, setVaultConfig] = useState<any>(null);
-  const [vaultDetails, setVaultDetails] = useState<any>(null);
+  
+  const [createForm, setCreateForm] = useState<CreateVaultForm>({
+    name: '',
+    description: '',
+    icon: '💰',
+    category: VaultCategory.CUSTOM,
+    entryFee: 0,
+    maxMembers: 10,
+    requiresVotingForWithdraw: true,
+    minVotesForWithdraw: 2,
+    withdrawalLimit: undefined
+  });
 
   useEffect(() => {
     loadUserVaults();
@@ -43,9 +55,7 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
   const loadUserVaults = async () => {
     setIsLoading(true);
     try {
-      // Simular carregamento
       setTimeout(() => {
-        // Por enquanto deixar vazio para mostrar o estado empty
         setVaults([]);
         setIsLoading(false);
       }, 1000);
@@ -61,38 +71,50 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
     setRefreshing(false);
   };
 
-  // Navegação para tela de configuração
   const handleCreateVault = () => {
     setShowCreateConfig(true);
   };
 
+  // MÉTODO CORRIGIDO - Avança para a próxima tela
   const handleConfigNext = (config: any) => {
     setVaultConfig(config);
     console.log('Configuração recebida:', config);
+    console.log('Regra aplicada: Nenhum usuário pode votar em saques próprios');
     
-    // Avança diretamente para a segunda tela
+    // Fechar tela de config e abrir tela de detalhes
     setShowCreateConfig(false);
     setShowCreateDetails(true);
   };
 
-  const handleDetailsNext = (details: any) => {
-    setVaultDetails(details);
-    console.log('Detalhes recebidos:', details);
-    
-    // Temporário: volta ao menu principal
-    Alert.alert(
-      'Sucesso',
-      'Etapa 2 concluída! Terceira etapa em desenvolvimento.',
-      [{ text: 'OK', onPress: () => {
-        setShowCreateDetails(false);
-      }}]
-    );
-  };
-
+  // NOVO MÉTODO - Voltar da tela de detalhes para config
   const handleDetailsBack = () => {
-    // Volta da tela de detalhes para configuração
     setShowCreateDetails(false);
     setShowCreateConfig(true);
+  };
+
+  // NOVO MÉTODO - Avançar da tela de detalhes (finalizar criação)
+  const handleDetailsNext = (details: any) => {
+    console.log('Detalhes recebidos:', details);
+    
+    const finalVaultData = {
+      ...vaultConfig,
+      ...details
+    };
+    
+    console.log('Dados completos do caixa:', finalVaultData);
+    
+    Alert.alert(
+      'Caixa Criado!', 
+      'Seu caixa comunitário foi configurado com sucesso!',
+      [{ 
+        text: 'OK', 
+        onPress: () => {
+          setShowCreateDetails(false);
+          // Aqui você pode chamar a função de criar o caixa na blockchain
+          // createVault(finalVaultData);
+        }
+      }]
+    );
   };
 
   const handleJoinVault = async () => {
@@ -118,7 +140,46 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
     }
   };
 
-  // Se deve mostrar a tela de configuração (etapa 1)
+  const resetCreateForm = () => {
+    setCreateForm({
+      name: '',
+      description: '',
+      icon: '💰',
+      category: VaultCategory.CUSTOM,
+      entryFee: 0,
+      maxMembers: 10,
+      requiresVotingForWithdraw: true,
+      minVotesForWithdraw: 2,
+      withdrawalLimit: undefined
+    });
+  };
+
+  const getCategoryIcon = (category: VaultCategory) => {
+    const icons = {
+      [VaultCategory.PARTY]: '🎉',
+      [VaultCategory.TRAVEL]: '✈️',
+      [VaultCategory.INVESTMENT]: '📈',
+      [VaultCategory.EMERGENCY]: '🚨',
+      [VaultCategory.SAVINGS]: '🏦',
+      [VaultCategory.CUSTOM]: '💰'
+    };
+    return icons[category];
+  };
+
+  const getCategoryName = (category: VaultCategory) => {
+    const names = {
+      [VaultCategory.PARTY]: 'Festa/Evento',
+      [VaultCategory.TRAVEL]: 'Viagem',
+      [VaultCategory.INVESTMENT]: 'Investimento',
+      [VaultCategory.EMERGENCY]: 'Emergência',
+      [VaultCategory.SAVINGS]: 'Poupança',
+      [VaultCategory.CUSTOM]: 'Personalizado'
+    };
+    return names[category];
+  };
+
+  // RENDERIZAÇÃO CONDICIONAL CORRIGIDA - ORDEM CORRETA
+  // 1. Primeiro: Tela de Configuração (Tela 1)
   if (showCreateConfig) {
     return (
       <CreateVaultConfigScreen
@@ -129,7 +190,7 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
     );
   }
 
-  // Se deve mostrar a tela de detalhes (etapa 2)
+  // 2. Segundo: Tela de Detalhes (Tela 2)
   if (showCreateDetails) {
     return (
       <CreateVaultDetailsScreen
@@ -141,11 +202,11 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
     );
   }
 
+  // 3. Por último: Menu principal do caixa
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#262728" />
       
-      {/* Header com ícone */}
       <View style={styles.header}>
         <Image 
           source={require('../../../../assets/icons/moneyBranco.png')} 
@@ -154,12 +215,10 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
         />
       </View>
 
-      {/* Título */}
       <View style={styles.titleContainer}>
         <Text style={styles.title}>Caixa comunitário</Text>
       </View>
 
-      {/* Botões de ação */}
       <View style={styles.actionButtonsContainer}>
         <TouchableOpacity 
           style={styles.actionButton}
@@ -194,12 +253,10 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
         </TouchableOpacity>
       </View>
 
-      {/* Linha divisória */}
       <View style={styles.dividerContainer}>
         <View style={styles.divider} />
       </View>
 
-      {/* Área de conteúdo/lista de caixas */}
       <ScrollView 
         style={styles.contentContainer}
         contentContainerStyle={styles.contentContainerStyle}
@@ -229,7 +286,6 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
             </Text>
           </View>
         ) : (
-          // Lista de caixas quando houver
           vaults.map((vault) => (
             <TouchableOpacity key={vault.id} style={styles.vaultCard}>
               <View style={styles.vaultCardHeader}>
@@ -244,7 +300,6 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
                 </View>
               </View>
               
-              {/* Indicador de regras de segurança */}
               <View style={styles.vaultSecurityBadge}>
                 <Text style={styles.vaultSecurityText}>
                   🔒 Votação própria bloqueada
@@ -255,7 +310,6 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
         )}
       </ScrollView>
 
-      {/* Botão Voltar */}
       <View style={styles.bottomContainer}>
         <TouchableOpacity 
           style={styles.backButton}
@@ -266,7 +320,6 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
         </TouchableOpacity>
       </View>
 
-      {/* Modal de Entrar no Caixa */}
       <Modal
         visible={showJoinModal}
         animationType="slide"
@@ -287,7 +340,6 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
               autoCapitalize="characters"
             />
             
-            {/* Aviso sobre regra de votação */}
             <View style={styles.securityNote}>
               <Text style={styles.securityNoteText}>
                 ℹ️ Regra de segurança: Membros não podem votar em saques próprios

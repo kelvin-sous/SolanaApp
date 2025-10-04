@@ -189,6 +189,20 @@ export const styles = StyleSheet.create({
     backgroundColor: '#444444',
     marginVertical: 16,
   },
+
+  //Icons
+   colorCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  randomIconContainer: {
+    alignItems: 'center',
+  },
+  randomIconText: {
+    fontSize: 24,
+    marginBottom: 2,
+  },
   
   // Botões inferiores
   bottomContainer: {

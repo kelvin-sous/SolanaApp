@@ -290,6 +290,19 @@ export const styles = StyleSheet.create({
     color: '#999',
     fontSize: 10,
   },
+
+  colorCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  randomIconContainer: {
+    alignItems: 'center',
+  },
+  randomIconText: {
+    fontSize: 24,
+    marginBottom: 2,
+  },
   
   // Modal Footer
   modalFooter: {

@@ -9,10 +9,8 @@ import {
   Switch,
   TextInput,
   StatusBar,
-  Image,
   Alert,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import { PublicKey } from '@solana/web3.js';
 import { styles } from './createVaultDetailsStyles';
 
@@ -24,7 +22,7 @@ interface CreateVaultDetailsScreenProps {
 }
 
 interface VaultDetails {
-  icon: string | null;
+  iconColor: string; 
   name: string;
   description: string;
   allowMinimumWithdrawals: boolean;
@@ -41,6 +39,20 @@ interface VaultDetails {
   };
 }
 
+// Cores predefinidas para escolher
+const VAULT_COLORS = [
+  '#AB9FF3', // Roxo (padrão do app)
+  '#FF6B6B', // Vermelho
+  '#4ECDC4', // Turquesa
+  '#FFD93D', // Amarelo
+  '#6BCF7F', // Verde
+  '#FF8B94', // Rosa
+  '#95E1D3', // Verde água
+  '#F38181', // Coral
+  '#AA96DA', // Lavanda
+  '#FCBAD3', // Rosa claro
+];
+
 const CreateVaultDetailsScreen: React.FC<CreateVaultDetailsScreenProps> = ({ 
   onBack, 
   onNext, 
@@ -48,7 +60,7 @@ const CreateVaultDetailsScreen: React.FC<CreateVaultDetailsScreenProps> = ({
   previousConfig 
 }) => {
   const [details, setDetails] = useState<VaultDetails>({
-    icon: null,
+    iconColor: VAULT_COLORS[0], // Cor padrão
     name: '',
     description: '',
     allowMinimumWithdrawals: false,
@@ -65,39 +77,19 @@ const CreateVaultDetailsScreen: React.FC<CreateVaultDetailsScreenProps> = ({
     },
   });
 
-  const [selectedIcon, setSelectedIcon] = useState<number | null>(null);
+  const [selectedColorIndex, setSelectedColorIndex] = useState<number>(0);
 
-  // Ícones pré-definidos
-  const predefinedIcons = [
-    require('../../../../assets/icons/phantom.png'),
-    require('../../../../assets/icons/moneyBranco.png'),
-    require('../../../../assets/icons/solana.png'),
-  ];
-
-  const handleSelectIcon = (index: number) => {
-    setSelectedIcon(index);
-    setDetails({ ...details, icon: `predefined_${index}` });
+  // Selecionar cor
+  const handleSelectColor = (index: number) => {
+    setSelectedColorIndex(index);
+    setDetails({ ...details, iconColor: VAULT_COLORS[index] });
   };
 
-  const handlePickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    
-    if (permissionResult.granted === false) {
-      Alert.alert('Permissão Negada', 'É necessário permitir acesso à galeria para escolher uma imagem.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
-
-    if (!result.canceled && result.assets[0]) {
-      setSelectedIcon(null);
-      setDetails({ ...details, icon: result.assets[0].uri });
-    }
+  // Gerar cor aleatória
+  const handleRandomColor = () => {
+    const randomIndex = Math.floor(Math.random() * VAULT_COLORS.length);
+    setSelectedColorIndex(randomIndex);
+    setDetails({ ...details, iconColor: VAULT_COLORS[randomIndex] });
   };
 
   const handleNext = () => {
@@ -128,7 +120,6 @@ const CreateVaultDetailsScreen: React.FC<CreateVaultDetailsScreenProps> = ({
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#262728" />
       
-      {/* Título e indicador de progresso */}
       <View style={styles.headerSection}>
         <Text style={styles.title}>Criar caixa comunitário</Text>
         <View style={styles.progressIndicator}>
@@ -145,39 +136,38 @@ const CreateVaultDetailsScreen: React.FC<CreateVaultDetailsScreenProps> = ({
       >
         <View style={styles.configContainer}>
           
-          {/* Seleção de ícone */}
+          {/* Seleção de cor */}
           <View style={styles.iconSection}>
-            <Text style={styles.sectionTitle}>Escolha o ícone do seu caixa:</Text>
+            <Text style={styles.sectionTitle}>Escolha a cor do seu caixa:</Text>
             
             <View style={styles.iconGrid}>
-              {predefinedIcons.map((icon, index) => (
+              {VAULT_COLORS.map((color, index) => (
                 <TouchableOpacity
                   key={index}
                   style={[
                     styles.iconOption,
-                    selectedIcon === index && styles.iconOptionSelected
+                    selectedColorIndex === index && styles.iconOptionSelected
                   ]}
-                  onPress={() => handleSelectIcon(index)}
+                  onPress={() => handleSelectColor(index)}
                 >
-                  <Image source={icon} style={styles.iconImage} resizeMode="contain" />
+                  <View 
+                    style={[
+                      styles.colorCircle, 
+                      { backgroundColor: color }
+                    ]} 
+                  />
                 </TouchableOpacity>
               ))}
               
+              {/* Botão de cor aleatória */}
               <TouchableOpacity
-                style={[
-                  styles.iconOption,
-                  details.icon && !selectedIcon && styles.iconOptionSelected
-                ]}
-                onPress={handlePickImage}
+                style={styles.iconOption}
+                onPress={handleRandomColor}
               >
-                {details.icon && !selectedIcon ? (
-                  <Image source={{ uri: details.icon }} style={styles.iconImage} resizeMode="cover" />
-                ) : (
-                  <View style={styles.uploadIconContainer}>
-                    <Text style={styles.uploadIconText}>📷</Text>
-                    <Text style={styles.uploadText}>Editar ícone</Text>
-                  </View>
-                )}
+                <View style={styles.randomIconContainer}>
+                  <Text style={styles.randomIconText}>🎲</Text>
+                  <Text style={styles.uploadText}>Aleatória</Text>
+                </View>
               </TouchableOpacity>
             </View>
           </View>
