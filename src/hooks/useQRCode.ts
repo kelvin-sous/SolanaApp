@@ -61,19 +61,19 @@ export const useQRCode = (): UseQRCodeReturn => {
   const qrService = QRCodeService.getInstance();
 
   const startScanning = useCallback(() => {
-    console.log('📱 Iniciando scan de QR Code...');
+    console.log('Iniciando scan de QR Code...');
     setIsScanning(true);
     setError(null);
   }, []);
 
   const stopScanning = useCallback(() => {
-    console.log('📱 Parando scan de QR Code...');
+    console.log('Parando scan de QR Code...');
     setIsScanning(false);
   }, []);
 
   const processQRCode = useCallback(async (qrString: string, fromPublicKey: string) => {
     try {
-      console.log('🔍 Processando QR Code escaneado...');
+      console.log('Processando QR Code escaneado...');
       setIsProcessing(true);
       setError(null);
 
@@ -84,7 +84,7 @@ export const useQRCode = (): UseQRCodeReturn => {
         throw new Error(result.error || 'QR Code inválido');
       }
 
-      console.log('✅ QR Code válido processado');
+      console.log('QR Code válido processado');
       setScannedData(result.data!);
 
       // Criar preview da transação
@@ -95,10 +95,10 @@ export const useQRCode = (): UseQRCodeReturn => {
         throw new Error(`Transação inválida: ${preview.errors.join(', ')}`);
       }
 
-      console.log('✅ Preview da transação criado');
+      console.log('Preview da transação criado');
       
     } catch (err) {
-      console.error('❌ Erro ao processar QR Code:', err);
+      console.error('Erro ao processar QR Code:', err);
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       setError(errorMessage);
       
@@ -119,14 +119,14 @@ export const useQRCode = (): UseQRCodeReturn => {
         throw new Error('Nenhuma transação para executar');
       }
 
-      console.log('🚀 Executando transação...');
+      console.log('Executando transação...');
       setIsProcessing(true);
       setError(null);
 
       const result = await qrService.executeTransaction(transactionPreview, session);
 
       if (result.success) {
-        console.log('🎉 Transação executada com sucesso!');
+        console.log('Transação executada com sucesso!');
         
         Alert.alert(
           'Pagamento Realizado',
@@ -143,7 +143,7 @@ export const useQRCode = (): UseQRCodeReturn => {
       return result;
       
     } catch (err) {
-      console.error('❌ Erro ao executar transação:', err);
+      console.error('Erro ao executar transação:', err);
       const errorMessage = err instanceof Error ? err.message : 'Erro na transação';
       setError(errorMessage);
       
@@ -160,7 +160,7 @@ export const useQRCode = (): UseQRCodeReturn => {
   }, [transactionPreview, qrService]);
 
   const clearData = useCallback(() => {
-    console.log('🧹 Limpando dados do QR Code...');
+    console.log('Limpando dados do QR Code...');
     setScannedData(null);
     setTransactionPreview(null);
     setError(null);

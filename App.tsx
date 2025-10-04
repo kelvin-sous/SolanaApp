@@ -23,7 +23,7 @@ try {
   HomeScreen = require('./src/screens/main/HomeScreen').default;
   usePhantom = require('./src/hooks/usePhantom').usePhantom;
 } catch (error) {
-  console.error('❌ Erro ao importar componentes:', error);
+  console.error('Erro ao importar componentes:', error);
 }
 
 export default function App() {

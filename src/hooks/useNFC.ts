@@ -52,7 +52,7 @@ export const useNFC = (
   const createNFCCallback = useCallback((): NFCStatusCallback => {
     return {
       onStatusChange: (newStatus: NFCTransactionStatus, newMessage?: string) => {
-        console.log('📡 NFC Status:', newStatus, newMessage);
+        console.log('NFC Status:', newStatus, newMessage);
         setStatus(newStatus);
         setMessage(newMessage || null);
         
@@ -61,12 +61,12 @@ export const useNFC = (
       },
       
       onDataReceived: (data: NFCTransactionData) => {
-        console.log('📨 Dados recebidos via NFC:', data);
+        console.log('Dados recebidos via NFC:', data);
         setCurrentTransactionData(data);
       },
       
       onTransactionComplete: (result: NFCTransactionResult) => {
-        console.log('✅ Transação NFC concluída:', result);
+        console.log('Transação NFC concluída:', result);
         setCurrentTransactionData(null);
         setIsActive(false);
         
@@ -84,7 +84,7 @@ export const useNFC = (
       setEstimatedFee(fee);
       return fee;
     } catch (error) {
-      console.error('❌ Erro ao estimar taxa:', error);
+      console.error('Erro ao estimar taxa:', error);
       setEstimatedFee(0.000005); // Fallback
       return 0.000005;
     }
@@ -113,7 +113,7 @@ export const useNFC = (
         throw new Error('Endereço do destinatário é obrigatório');
       }
 
-      console.log('🚀 Iniciando envio NFC:', { amountUSD, receiverPublicKey });
+      console.log('Iniciando envio NFC:', { amountUSD, receiverPublicKey });
 
       // Estimar taxa
       await estimateTransactionFee();
@@ -126,7 +126,7 @@ export const useNFC = (
       await nfcService.startSending(amountUSD, receiverPublicKey, callback);
 
     } catch (error) {
-      console.error('❌ Erro ao iniciar envio:', error);
+      console.error('Erro ao iniciar envio:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       setStatus('ERROR');
       setMessage(errorMessage);
@@ -159,7 +159,7 @@ export const useNFC = (
       await nfcService.startReceiving(callback);
 
     } catch (error) {
-      console.error('❌ Erro ao iniciar recebimento:', error);
+      console.error('Erro ao iniciar recebimento:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       setStatus('ERROR');
       setMessage(errorMessage);
@@ -175,7 +175,7 @@ export const useNFC = (
         throw new Error('Nenhuma transação pendente para confirmar');
       }
 
-      console.log('🔐 Confirmando transação:', accept ? 'ACEITA' : 'REJEITADA');
+      console.log('Confirmando transação:', accept ? 'ACEITA' : 'REJEITADA');
 
       await nfcService.confirmReceiving(accept);
 
@@ -187,7 +187,7 @@ export const useNFC = (
       }
 
     } catch (error) {
-      console.error('❌ Erro ao confirmar transação:', error);
+      console.error('Erro ao confirmar transação:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       setStatus('ERROR');
       setMessage(errorMessage);
@@ -199,7 +199,7 @@ export const useNFC = (
   // Parar operação
   const stop = useCallback(async (): Promise<void> => {
     try {
-      console.log('⏹️ Parando operação NFC...');
+      console.log('Parando operação NFC...');
       
       await nfcService.stop();
       
@@ -209,9 +209,9 @@ export const useNFC = (
       setIsActive(false);
       callbackRef.current = null;
       
-      console.log('✅ Operação NFC parada');
+      console.log('Operação NFC parada');
     } catch (error) {
-      console.error('❌ Erro ao parar NFC:', error);
+      console.error('Erro ao parar NFC:', error);
       // Mesmo com erro, resetar o estado
       setStatus('IDLE');
       setMessage(null);
@@ -226,7 +226,7 @@ export const useNFC = (
     try {
       return await nfcService.checkNFCStatus();
     } catch (error) {
-      console.error('❌ Erro ao verificar status NFC:', error);
+      console.error('Erro ao verificar status NFC:', error);
       return {
         supported: false,
         enabled: false,

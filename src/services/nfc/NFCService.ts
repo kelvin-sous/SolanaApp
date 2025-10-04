@@ -689,7 +689,7 @@ class NFCService {
       // Em devnet, a taxa pode ser zero, mas retornamos a estimativa
       return baseFee;
     } catch (error) {
-      console.error('❌ Erro ao estimar taxa:', error);
+      console.error('Erro ao estimar taxa:', error);
       return 0.000005; // Fallback
     }
   }
@@ -709,7 +709,7 @@ class NFCService {
       
       console.log('🧹 Cleanup NFC concluído');
     } catch (error) {
-      console.error('❌ Erro no cleanup NFC:', error);
+      console.error('Erro no cleanup NFC:', error);
     }
   }
 }

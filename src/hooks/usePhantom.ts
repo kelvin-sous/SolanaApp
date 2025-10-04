@@ -42,10 +42,10 @@ export const usePhantom = (): UsePhantomReturn => {
         setSession(savedSession);
         setPublicKey(savedSession.publicKey);
         setIsConnected(true);
-        console.log('✅ Sessão restaurada');
+        console.log('Sessão restaurada');
       }
     } catch (err) {
-      console.error('❌ Erro ao carregar sessão:', err);
+      console.error('Erro ao carregar sessão:', err);
       setError('Erro ao carregar sessão salva');
     } finally {
       setIsLoading(false);
@@ -68,11 +68,11 @@ export const usePhantom = (): UsePhantomReturn => {
       setPublicKey(result.publicKey);
       setIsConnected(true);
 
-      console.log('✅ Conectado com sucesso:', result.publicKey.toString());
+      console.log('Conectado com sucesso:', result.publicKey.toString());
       return 'CONNECTED';
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
-      console.error('❌ Erro na conexão:', errorMessage);
+      console.error('Erro na conexão:', errorMessage);
       setError(errorMessage);
       throw err;
     } finally {
@@ -90,10 +90,10 @@ export const usePhantom = (): UsePhantomReturn => {
       setIsConnected(false);
       setError(null);
 
-      console.log('✅ Desconectado com sucesso');
+      console.log('Desconectado com sucesso');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Erro ao desconectar';
-      console.error('❌ Erro ao desconectar:', errorMessage);
+      console.error('Erro ao desconectar:', errorMessage);
       setError(errorMessage);
       throw err;
     } finally {
@@ -103,10 +103,10 @@ export const usePhantom = (): UsePhantomReturn => {
 
   const testDeepLink = useCallback(async (): Promise<void> => {
     try {
-      console.log('🧪 Testando deep link...');
+      console.log('Testando deep link...');
       await phantomService.testDeepLink();
     } catch (err) {
-      console.error('❌ Erro no teste:', err);
+      console.error('Erro no teste:', err);
     }
   }, [phantomService]);
 

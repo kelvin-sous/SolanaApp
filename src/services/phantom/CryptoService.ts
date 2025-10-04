@@ -74,7 +74,7 @@ export class CryptoService {
 
       return new TextDecoder().decode(decryptedData);
     } catch (error) {
-      console.error('❌ Erro na descriptografia:', error);
+      console.error('Erro na descriptografia:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       throw new Error(`Falha ao descriptografar: ${errorMessage}`);
     }
@@ -90,31 +90,31 @@ export class CryptoService {
     dappKeyPair: nacl.BoxKeyPair
   ): DecryptedConnectData {
     try {
-      console.log('🔓 Iniciando descriptografia da resposta...');
+      console.log('Iniciando descriptografia da resposta...');
       
       // Decodificar chave pública do Phantom
       const phantomPublicKey = bs58.decode(phantomEncryptionPublicKey);
-      console.log('✅ Chave pública Phantom decodificada');
+      console.log('Chave pública Phantom decodificada');
       
       // Criar segredo compartilhado
       const sharedSecret = this.createSharedSecret(phantomPublicKey, dappKeyPair.secretKey);
-      console.log('✅ Segredo compartilhado criado');
+      console.log('Segredo compartilhado criado');
       
       // Descriptografar dados
       const encryptedPayload: EncryptedPayload = { nonce, data };
       const decryptedJson = this.decrypt(encryptedPayload, sharedSecret);
-      console.log('✅ Dados descriptografados');
+      console.log('Dados descriptografados');
       
       // Parsear JSON
       const connectData: DecryptedConnectData = JSON.parse(decryptedJson);
-      console.log('✅ JSON parseado:', { 
+      console.log('JSON parseado:', { 
         hasPublicKey: !!connectData.public_key,
         hasSession: !!connectData.session 
       });
       
       return connectData;
     } catch (error) {
-      console.error('❌ Erro na descriptografia da resposta:', error);
+      console.error('Erro na descriptografia da resposta:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       throw new Error(`Falha ao descriptografar resposta do Phantom: ${errorMessage}`);
     }

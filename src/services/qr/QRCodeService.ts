@@ -74,7 +74,7 @@ class QRCodeService {
    */
   async generateReceiveQRData(params: QRCodeGenerationParams): Promise<string> {
     try {
-      console.log('🎯 Gerando QR Code para recebimento...');
+      console.log('Gerando QR Code para recebimento...');
 
       const qrData: QRCodeData = {
         type: 'WALLET_ADDRESS',
@@ -88,11 +88,11 @@ class QRCodeService {
       };
 
       const qrString = JSON.stringify(qrData);
-      console.log('✅ QR Code gerado');
+      console.log('QR Code gerado');
       return qrString;
       
     } catch (error) {
-      console.error('❌ Erro ao gerar QR Code:', error);
+      console.error('Erro ao gerar QR Code:', error);
       throw error;
     }
   }
@@ -102,7 +102,7 @@ class QRCodeService {
    */
   async processScannedQRCode(qrString: string): Promise<QRCodeScanResult> {
     try {
-      console.log('🔍 Processando QR Code escaneado...');
+      console.log('Processando QR Code escaneado...');
 
       let qrData: QRCodeData;
       try {
@@ -120,7 +120,7 @@ class QRCodeService {
       };
       
     } catch (error) {
-      console.error('❌ Erro ao processar QR Code:', error);
+      console.error('Erro ao processar QR Code:', error);
       return {
         isValid: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido'
@@ -159,7 +159,7 @@ class QRCodeService {
     preview: TransactionPreview,
     session: any
   ): Promise<{ success: boolean; signature?: string; error?: string }> {
-    console.log('🚀 Mock: Executando transação...');
+    console.log('Mock: Executando transação...');
     
     // Simular sucesso
     return {

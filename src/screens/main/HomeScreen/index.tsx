@@ -1,6 +1,5 @@
 // ========================================
 // src/screens/main/HomeScreen/index.tsx
-// Tela principal com card de criptomoedas
 // ========================================
 
 import React, { useState, useEffect } from 'react';
@@ -22,6 +21,7 @@ import { usePhantom } from '../../../hooks/usePhantom';
 import NFCScreen from '../NFCScreen';
 import QRReceiveScreen from '../QRReceiveScreen';
 import QRPayScreen from '../QRPayScreen';
+import CommunityVaultScreen from '../CommunityVault/index';
 import CryptoBalanceCard from '../../../components/CryptoBalanceCard';
 import { styles } from './styles';
 
@@ -40,6 +40,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
   const [showNFCScreen, setShowNFCScreen] = useState(false);
   const [showQRReceiveScreen, setShowQRReceiveScreen] = useState(false);
   const [showQRPayScreen, setShowQRPayScreen] = useState(false);
+  const [showCommunityVaultScreen, setShowCommunityVaultScreen] = useState(false); // ✨ NOVO STATE
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const iconColors = ['#AB9FF3', '#3271B8', '#E6474A'];
@@ -67,8 +68,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
     setShowQRReceiveScreen(true);
   };
 
+  // ✨ FUNÇÃO ATUALIZADA - AGORA NAVEGA PARA A TELA DO CAIXA COMUNITÁRIO
   const handleCommunityBox = () => {
-    Alert.alert('Caixa Comunitário', 'Funcionalidade do caixa comunitário será implementada');
+    setShowCommunityVaultScreen(true);
   };
 
   const handleHeaderScan = () => {
@@ -152,7 +154,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
     return 0;
   };
 
-  // ✨ FUNÇÃO PARA ATUALIZAR SALDO (SEM ALERTS)
+  // FUNÇÃO PARA ATUALIZAR SALDO (SEM ALERTS)
   const handleBalanceRefresh = async () => {
     try {
       setIsRefreshing(true);
@@ -162,13 +164,23 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
       
       console.log('✅ Saldo atualizado com sucesso');
     } catch (error) {
-      console.error('❌ Erro ao atualizar saldo:', error);
+      console.error('Erro ao atualizar saldo:', error);
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  // Renderização condicional das telas
+  // ✨ NOVA VERIFICAÇÃO - RENDERIZAÇÃO CONDICIONAL DO CAIXA COMUNITÁRIO
+  if (showCommunityVaultScreen) {
+    return (
+      <CommunityVaultScreen 
+        onBack={() => setShowCommunityVaultScreen(false)} 
+        publicKey={publicKey}
+      />
+    );
+  }
+
+  // Renderização condicional das outras telas
   if (showNFCScreen) {
     return <NFCScreen onBack={() => setShowNFCScreen(false)} />;
   }
@@ -231,7 +243,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
                 <Text style={styles.balanceLabel}>SALDO</Text>
               </View>
               
-              {/* ✨ BOTÃO DE REFRESH MELHORADO */}
+              {/* BOTÃO DE REFRESH MELHORADO */}
               <TouchableOpacity 
                 style={styles.refreshButton}
                 onPress={handleBalanceRefresh}
@@ -250,7 +262,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
             </View>
           </View>
           
-          {/* ✨ INDICADOR DE STATUS DO SALDO (SEM TEXTO DE ERRO) */}
+          {/* INDICADOR DE STATUS DO SALDO */}
           <View style={styles.balanceAmount}>
             <Text style={styles.balanceValue}>
               {balanceLoading || isRefreshing 
@@ -333,13 +345,15 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ publicKey, disconnect }) => {
           </TouchableOpacity>
         </View>
 
-        {/* ✨ NOVO: CARD DE CRIPTOMOEDAS */}
+        {/* CARD DE CRIPTOMOEDAS */}
         <CryptoBalanceCard publicKey={publicKey} />
 
         <View style={styles.additionalContent}>
+          {/* Espaço para conteúdo adicional */}
         </View>
       </ScrollView>
 
+      {/* MODAL DO MENU LATERAL */}
       <Modal
         animationType="fade"
         transparent={true}

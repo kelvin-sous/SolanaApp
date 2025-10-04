@@ -14,12 +14,12 @@ import {
 } from '@solana/web3.js';
 import { SolanaBalance, SolanaNetwork } from '../../types/wallet';
 
-// ✨ INTERFACES PARA TRANSAÇÕES NFC
+// INTERFACES PARA TRANSAÇÕES NFC
 export interface SolanaTransactionRequest {
   fromPublicKey: string;
   toPublicKey: string;
   amount: number;
-  amountSOL?: number; // ✅ Adicionado para NFCService
+  amountSOL?: number; 
   memo?: string;
   timestamp: number;
 }
@@ -31,10 +31,10 @@ export interface SolanaTransactionResult {
   timestamp: number;
 }
 
-// ✨ INTERFACE PARA DADOS DE PREÇO
+// INTERFACE PARA DADOS DE PREÇO
 interface SOLPriceData {
   usd: number;
-  solToUsd: number; // ✅ Adicionado para compatibilidade
+  solToUsd: number; 
   lastUpdated: number;
 }
 
@@ -59,15 +59,15 @@ export default class SolanaService {
     return SolanaService.instance;
   }
 
-  // ✨ MÉTODO PRINCIPAL PARA BUSCAR SALDO
+  // MÉTODO PRINCIPAL PARA BUSCAR SALDO
   public async getBalance(publicKey: PublicKey): Promise<SolanaBalance> {
     try {
-      console.log('🔄 SolanaService: Buscando saldo para:', publicKey.toString().slice(0, 8) + '...');
+      console.log('SolanaService: Buscando saldo para:', publicKey.toString().slice(0, 8) + '...');
       
       const lamports = await this.connection.getBalance(publicKey);
       const solBalance = lamports / LAMPORTS_PER_SOL;
       
-      console.log('💰 SolanaService: Saldo encontrado -', solBalance, 'SOL (', lamports, 'lamports)');
+      console.log('SolanaService: Saldo encontrado -', solBalance, 'SOL (', lamports, 'lamports)');
       
       const balanceData: SolanaBalance = {
         balance: solBalance,
@@ -80,12 +80,12 @@ export default class SolanaService {
       return balanceData;
       
     } catch (error) {
-      console.error('❌ SolanaService: Erro ao buscar saldo:', error);
+      console.error('SolanaService: Erro ao buscar saldo:', error);
       throw new Error(`Erro ao buscar saldo: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
     }
   }
 
-  // ✨ VALIDAR ENDEREÇO SOLANA
+  // VALIDAR ENDEREÇO SOLANA
   public static isValidAddress(address: string): boolean {
     try {
       new PublicKey(address);
@@ -95,12 +95,12 @@ export default class SolanaService {
     }
   }
 
-  // ✨ FORMATAÇÃO DE SALDO
+  // FORMATAÇÃO DE SALDO
   public static formatBalance(balance: number, decimals: number = 4): string {
     return balance.toFixed(decimals);
   }
 
-  // ✨ OBTER PREÇO DO SOL EM USD
+  // OBTER PREÇO DO SOL EM USD
   public async getSOLPrice(): Promise<SOLPriceData> {
     try {
       // Cache do preço por 5 minutos
@@ -108,7 +108,7 @@ export default class SolanaService {
         return this.solPriceCache;
       }
 
-      console.log('🔄 Buscando preço atual do SOL...');
+      console.log('Buscando preço atual do SOL...');
       
       // API gratuita para obter preço do SOL
       const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
@@ -122,63 +122,63 @@ export default class SolanaService {
       
       this.solPriceCache = {
         usd: price,
-        solToUsd: price, // ✅ Mesmo valor para compatibilidade
+        solToUsd: price,
         lastUpdated: Date.now()
       };
       
-      console.log('💰 Preço atual do SOL:', price, 'USD');
+      console.log('Preço atual do SOL:', price, 'USD');
       return this.solPriceCache;
       
     } catch (error) {
-      console.error('❌ Erro ao buscar preço do SOL:', error);
+      console.error('Erro ao buscar preço do SOL:', error);
       
       // Retornar preço padrão em caso de erro
       const fallbackPrice = { 
         usd: 100, 
-        solToUsd: 100, // ✅ Adicionado
+        solToUsd: 100, 
         lastUpdated: Date.now() 
       };
       return fallbackPrice;
     }
   }
 
-  // ✨ CONVERTER USD PARA SOL
+  // CONVERTER USD PARA SOL
   public async convertUSDToSOL(usdAmount: number): Promise<number> {
     try {
       const priceData = await this.getSOLPrice();
       const solAmount = usdAmount / priceData.usd;
       
-      console.log(`💱 Conversão: $${usdAmount} USD = ${solAmount.toFixed(6)} SOL`);
+      console.log(`Conversão: $${usdAmount} USD = ${solAmount.toFixed(6)} SOL`);
       return solAmount;
       
     } catch (error) {
-      console.error('❌ Erro na conversão USD para SOL:', error);
+      console.error('Erro na conversão USD para SOL:', error);
       throw new Error('Não foi possível converter USD para SOL');
     }
   }
 
-  // ✨ CONVERTER SOL PARA USD
+  // CONVERTER SOL PARA USD
   public async convertSOLToUSD(solAmount: number): Promise<number> {
     try {
       const priceData = await this.getSOLPrice();
       const usdAmount = solAmount * priceData.usd;
       
-      console.log(`💱 Conversão: ${solAmount} SOL = $${usdAmount.toFixed(2)} USD`);
+      console.log(`Conversão: ${solAmount} SOL = $${usdAmount.toFixed(2)} USD`);
       return usdAmount;
       
     } catch (error) {
-      console.error('❌ Erro na conversão SOL para USD:', error);
+      console.error('Erro na conversão SOL para USD:', error);
       throw new Error('Não foi possível converter SOL para USD');
     }
   }
 
-  // ✨ EXECUTAR TRANSFERÊNCIA NFC
+  // EXECUTAR TRANSFERÊNCIA NFC
   public async executeNFCTransfer(
     transactionRequest: SolanaTransactionRequest, 
     session: any
   ): Promise<SolanaTransactionResult> {
     try {
-      console.log('🔄 Executando transferência NFC...', transactionRequest);
+      console.log('Executando transferência NFC...', transactionRequest);
       
       const fromPubKey = new PublicKey(transactionRequest.fromPublicKey);
       const toPubKey = new PublicKey(transactionRequest.toPublicKey);
@@ -205,7 +205,7 @@ export default class SolanaService {
       // Confirmar transação
       await this.connection.confirmTransaction(signature);
       
-      console.log('✅ Transferência NFC realizada com sucesso:', signature);
+      console.log('Transferência NFC realizada com sucesso:', signature);
       
       return {
         success: true,
@@ -214,7 +214,7 @@ export default class SolanaService {
       };
       
     } catch (error) {
-      console.error('❌ Erro na transferência NFC:', error);
+      console.error('Erro na transferência NFC:', error);
       
       return {
         success: false,
@@ -224,18 +224,18 @@ export default class SolanaService {
     }
   }
 
-  // ✨ VERIFICAR SE CONTA EXISTE
+  // VERIFICAR SE CONTA EXISTE
   public async accountExists(publicKey: PublicKey): Promise<boolean> {
     try {
       const accountInfo = await this.connection.getAccountInfo(publicKey);
       return accountInfo !== null;
     } catch (error) {
-      console.error('❌ Erro ao verificar conta:', error);
+      console.error('Erro ao verificar conta:', error);
       return false;
     }
   }
 
-  // ✨ BUSCAR HISTÓRICO DE TRANSAÇÕES
+  // BUSCAR HISTÓRICO DE TRANSAÇÕES
   public async getTransactionHistory(publicKey: PublicKey, limit: number = 10) {
     try {
       const signatures = await this.connection.getSignaturesForAddress(
@@ -243,15 +243,15 @@ export default class SolanaService {
         { limit }
       );
       
-      console.log(`📜 Encontradas ${signatures.length} transações`);
+      console.log(`Encontradas ${signatures.length} transações`);
       return signatures;
     } catch (error) {
-      console.error('❌ Erro ao buscar histórico:', error);
+      console.error('Erro ao buscar histórico:', error);
       throw error;
     }
   }
 
-  // ✨ GETTERS E SETTERS
+  // GETTERS E SETTERS
   public getConnection(): Connection {
     return this.connection;
   }
@@ -266,10 +266,10 @@ export default class SolanaService {
       clusterApiUrl(network),
       'confirmed' as Commitment
     );
-    console.log('🔄 Rede alterada para:', network);
+    console.log('Rede alterada para:', network);
   }
 
-  // ✨ UTILITÁRIOS
+  // UTILITÁRIOS
   public lamportsToSol(lamports: number): number {
     return lamports / LAMPORTS_PER_SOL;
   }
@@ -282,13 +282,13 @@ export default class SolanaService {
     return balance.toFixed(decimals);
   }
 
-  // ✨ OBTER SLOT ATUAL
+  // OBTER SLOT ATUAL
   public async getCurrentSlot(): Promise<number> {
     try {
       const slot = await this.connection.getSlot();
       return slot;
     } catch (error) {
-      console.error('❌ Erro ao buscar slot atual:', error);
+      console.error('Erro ao buscar slot atual:', error);
       throw error;
     }
   }
