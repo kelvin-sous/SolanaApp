@@ -39,7 +39,7 @@ export const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   
-  // Botões de Ação (Criar caixa e Convites)
+  // Botões de Ação
   actionButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
@@ -125,58 +125,92 @@ export const styles = StyleSheet.create({
     marginTop: 10,
   },
   
-  // Cards de Caixas (quando houver)
+  // Cards de Caixas ATUALIZADOS
   vaultCard: {
     backgroundColor: '#373737',
     borderRadius: 16,
-    padding: 16,
     marginVertical: 8,
-    borderWidth: 0,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#444444',
+  },
+  vaultColorIndicator: {
+    width: '100%',
+    height: 6,
+  },
+  vaultCardContent: {
+    padding: 16,
   },
   vaultCardHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  vaultIcon: {
-    fontSize: 36,
-    marginRight: 12,
-  },
-  vaultInfo: {
-    flex: 1,
+    marginBottom: 8,
   },
   vaultName: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 8,
+  },
+  vaultMembersBadge: {
+    backgroundColor: '#2A2A2A',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  vaultMembersBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
     fontWeight: '600',
-    marginBottom: 2,
   },
   vaultDescription: {
-    color: '#999',
-    fontSize: 12,
+    color: '#CCCCCC',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
   },
-  vaultBalance: {
-    alignItems: 'flex-end',
+  vaultInfoRow: {
+    flexDirection: 'row',
+    backgroundColor: '#2A2A2A',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
   },
-  vaultBalanceLabel: {
-    color: '#999',
-    fontSize: 10,
-    marginBottom: 2,
+  vaultInfoItem: {
+    flex: 1,
+    alignItems: 'center',
   },
-  vaultBalanceValue: {
-    color: '#4ADE80',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  vaultSecurityBadge: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#444444',
-  },
-  vaultSecurityText: {
+  vaultInfoLabel: {
     color: '#999999',
     fontSize: 11,
-    fontStyle: 'italic',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  vaultInfoValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  vaultInfoDivider: {
+    width: 1,
+    backgroundColor: '#444444',
+    marginHorizontal: 12,
+  },
+  vaultSecurityBadge: {
+    backgroundColor: 'rgba(171, 159, 243, 0.1)',
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(171, 159, 243, 0.2)',
+  },
+  vaultSecurityText: {
+    color: '#AB9FF3',
+    fontSize: 11,
+    textAlign: 'center',
+    fontWeight: '500',
   },
   
   // Nota de segurança
@@ -289,19 +323,6 @@ export const styles = StyleSheet.create({
   categoryName: {
     color: '#999',
     fontSize: 10,
-  },
-
-  colorCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
-  randomIconContainer: {
-    alignItems: 'center',
-  },
-  randomIconText: {
-    fontSize: 24,
-    marginBottom: 2,
   },
   
   // Modal Footer

@@ -15,26 +15,37 @@ import {
   RefreshControl
 } from 'react-native';
 import { PublicKey } from '@solana/web3.js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { styles } from './styles';
-import { CommunityVault, VaultCategory, CreateVaultForm } from '../../../services/communityVault/types';
+import { CommunityVault, VaultCategory, CreateVaultForm, MemberRole } from '../../../services/communityVault/types';
 import CreateVaultConfigScreen from './CreateVaultConfigScreen';
 import CreateVaultDetailsScreen from './CreateVaultDetailsScreen';
+import CreateVaultInviteScreen from './CreateVaultInviteScreen';
 
 interface CommunityVaultScreenProps {
   onBack: () => void;
   publicKey: PublicKey;
 }
 
+interface VaultInvite {
+  wallet: string;
+  role: string;
+}
+
+const VAULTS_STORAGE_KEY = '@community_vaults';
+
 const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, publicKey }) => {
   const [vaults, setVaults] = useState<CommunityVault[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [showCreateConfig, setShowCreateConfig] = useState(false);
-  const [showCreateDetails, setShowCreateDetails] = useState(false); // NOVO ESTADO
+  const [showCreateDetails, setShowCreateDetails] = useState(false);
+  const [showCreateInvite, setShowCreateInvite] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [vaultConfig, setVaultConfig] = useState<any>(null);
+  const [vaultDetails, setVaultDetails] = useState<any>(null);
   
   const [createForm, setCreateForm] = useState<CreateVaultForm>({
     name: '',
@@ -55,12 +66,32 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
   const loadUserVaults = async () => {
     setIsLoading(true);
     try {
-      setTimeout(() => {
+      console.log('Carregando caixas do usuário...');
+      
+      // Carregar do AsyncStorage
+      const storedVaults = await AsyncStorage.getItem(VAULTS_STORAGE_KEY);
+      
+      if (storedVaults) {
+        const allVaults = JSON.parse(storedVaults);
+        
+        // Filtrar apenas caixas onde o usuário é criador ou membro
+        const userVaults = allVaults.filter((vault: any) => {
+          return vault.creator === publicKey.toString() ||
+                 vault.invites?.some((invite: any) => 
+                   invite.wallet === publicKey.toString()
+                 );
+        });
+        
+        console.log(`Encontrados ${userVaults.length} caixas`);
+        setVaults(userVaults);
+      } else {
         setVaults([]);
-        setIsLoading(false);
-      }, 1000);
+      }
+      
+      setIsLoading(false);
     } catch (error) {
       console.error('Erro ao carregar caixas:', error);
+      setVaults([]);
       setIsLoading(false);
     }
   };
@@ -71,49 +102,157 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
     setRefreshing(false);
   };
 
-  const handleCreateVault = () => {
+  const handleOpenCreateVault = () => {
     setShowCreateConfig(true);
   };
 
-  // MÉTODO CORRIGIDO - Avança para a próxima tela
   const handleConfigNext = (config: any) => {
     setVaultConfig(config);
     console.log('Configuração recebida:', config);
     console.log('Regra aplicada: Nenhum usuário pode votar em saques próprios');
     
-    // Fechar tela de config e abrir tela de detalhes
     setShowCreateConfig(false);
     setShowCreateDetails(true);
   };
 
-  // NOVO MÉTODO - Voltar da tela de detalhes para config
   const handleDetailsBack = () => {
     setShowCreateDetails(false);
     setShowCreateConfig(true);
   };
 
-  // NOVO MÉTODO - Avançar da tela de detalhes (finalizar criação)
   const handleDetailsNext = (details: any) => {
+    setVaultDetails(details);
     console.log('Detalhes recebidos:', details);
     
-    const finalVaultData = {
-      ...vaultConfig,
-      ...details
-    };
-    
-    console.log('Dados completos do caixa:', finalVaultData);
-    
-    Alert.alert(
-      'Caixa Criado!', 
-      'Seu caixa comunitário foi configurado com sucesso!',
-      [{ 
-        text: 'OK', 
-        onPress: () => {
-          setShowCreateDetails(false);
-          // Aqui você pode chamar a função de criar o caixa na blockchain
-          // createVault(finalVaultData);
+    setShowCreateDetails(false);
+    setShowCreateInvite(true);
+  };
+
+  const handleInviteBack = () => {
+    setShowCreateInvite(false);
+    setShowCreateDetails(true);
+  };
+
+  const generateInviteCode = (): string => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  const handleFinishCreateVault = async (invites: VaultInvite[]) => {
+    try {
+      const finalVaultData = {
+        ...vaultConfig,
+        ...vaultDetails,
+        invites,
+        creator: publicKey.toString(),
+        createdAt: new Date().toISOString()
+      };
+      
+      console.log('=== DADOS COMPLETOS DO CAIXA ===');
+      console.log('Config (Tela 1):', vaultConfig);
+      console.log('Details (Tela 2):', vaultDetails);
+      console.log('Invites (Tela 3):', invites);
+      console.log('Dados Finais:', finalVaultData);
+      console.log('================================');
+      
+      setIsLoading(true);
+      
+      // Criar objeto do caixa
+      const newVault: CommunityVault = {
+        id: `vault_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        name: vaultDetails.name,
+        description: vaultDetails.description || '',
+        icon: vaultDetails.iconColor,
+        creator: new PublicKey(publicKey.toString()),
+        balance: 0,
+        members: [
+          {
+            publicKey: new PublicKey(publicKey.toString()),
+            role: MemberRole.FOUNDER,
+            joinedAt: new Date(),
+            nickname: 'Fundador',
+            depositedAmount: 0,
+            withdrawnAmount: 0
+          }
+        ],
+        settings: {
+          entryFee: 0,
+          maxMembers: 10,
+          allowGuestDeposits: vaultConfig.depositMethod === 'simpleMajority',
+          allowGuestWithdrawals: vaultConfig.generalWithdrawMethod === 'simpleMajority',
+          depositRules: {
+            requiresVoting: vaultConfig.depositMethod !== 'simpleMajority',
+            minVotesRequired: 1,
+            votingPeriod: 86400
+          },
+          withdrawRules: {
+            requiresVoting: true,
+            minVotesRequired: vaultConfig.generalWithdrawMethod === 'allFounders' ? 2 : 1,
+            votingPeriod: 86400
+          },
+          adminPermissions: vaultConfig.adminCanInvite ? ['ADD_MEMBER', 'REMOVE_GUEST'] : [],
+          guestPermissions: ['VIEW'],
+          withdrawalLimit: vaultDetails.minimumWithdrawalLimit
+        },
+        proposals: [],
+        transactions: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isActive: true,
+        inviteCode: generateInviteCode(),
+        category: VaultCategory.CUSTOM,
+        stats: {
+          totalDeposited: 0,
+          totalWithdrawn: 0,
+          totalMembers: 1 + invites.length,
+          activeProposals: 0,
+          completedProposals: 0,
+          lastActivity: new Date()
         }
-      }]
+      };
+
+      // Salvar no AsyncStorage
+      const storedVaults = await AsyncStorage.getItem(VAULTS_STORAGE_KEY);
+      const allVaults = storedVaults ? JSON.parse(storedVaults) : [];
+      allVaults.push(newVault);
+      await AsyncStorage.setItem(VAULTS_STORAGE_KEY, JSON.stringify(allVaults));
+      
+      console.log('Caixa salvo com sucesso!');
+      
+      setTimeout(() => {
+        setIsLoading(false);
+        
+        Alert.alert(
+          '🎉 Caixa Criado!',
+          `Nome: ${vaultDetails.name}\nMembros convidados: ${invites.length}\nCódigo: ${newVault.inviteCode}\n\nOs convites foram enviados e expiram em 7 dias.`,
+          [{
+            text: 'OK',
+            onPress: () => {
+              setShowCreateInvite(false);
+              setVaultConfig(null);
+              setVaultDetails(null);
+              loadUserVaults();
+            }
+          }]
+        );
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Erro ao criar caixa:', error);
+      Alert.alert('Erro', 'Não foi possível criar o caixa. Tente novamente.');
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenVault = (vault: CommunityVault) => {
+    Alert.alert(
+      '🚧 Em Construção',
+      `O caixa "${vault.name}" está disponível!\n\nEm breve você poderá:\n• Ver detalhes e saldo\n• Fazer depósitos\n• Criar propostas de saque\n• Votar em propostas\n• Gerenciar membros`,
+      [{ text: 'OK' }]
     );
   };
 
@@ -178,8 +317,7 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
     return names[category];
   };
 
-  // RENDERIZAÇÃO CONDICIONAL CORRIGIDA - ORDEM CORRETA
-  // 1. Primeiro: Tela de Configuração (Tela 1)
+  // RENDERIZAÇÕES CONDICIONAIS
   if (showCreateConfig) {
     return (
       <CreateVaultConfigScreen
@@ -190,7 +328,6 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
     );
   }
 
-  // 2. Segundo: Tela de Detalhes (Tela 2)
   if (showCreateDetails) {
     return (
       <CreateVaultDetailsScreen
@@ -202,7 +339,19 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
     );
   }
 
-  // 3. Por último: Menu principal do caixa
+  if (showCreateInvite) {
+    return (
+      <CreateVaultInviteScreen
+        onBack={handleInviteBack}
+        onCreate={handleFinishCreateVault}
+        publicKey={publicKey}
+        previousConfig={vaultConfig}
+        previousDetails={vaultDetails}
+      />
+    );
+  }
+
+  // MENU PRINCIPAL
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#262728" />
@@ -222,7 +371,7 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
       <View style={styles.actionButtonsContainer}>
         <TouchableOpacity 
           style={styles.actionButton}
-          onPress={handleCreateVault}
+          onPress={handleOpenCreateVault}
         >
           <View style={styles.actionButtonContent}>
             <View style={styles.iconCircle}>
@@ -287,23 +436,56 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
           </View>
         ) : (
           vaults.map((vault) => (
-            <TouchableOpacity key={vault.id} style={styles.vaultCard}>
-              <View style={styles.vaultCardHeader}>
-                <Text style={styles.vaultIcon}>{vault.icon}</Text>
-                <View style={styles.vaultInfo}>
-                  <Text style={styles.vaultName}>{vault.name}</Text>
-                  <Text style={styles.vaultDescription}>{vault.description}</Text>
-                </View>
-                <View style={styles.vaultBalance}>
-                  <Text style={styles.vaultBalanceLabel}>Saldo</Text>
-                  <Text style={styles.vaultBalanceValue}>{vault.balance.toFixed(2)} SOL</Text>
-                </View>
-              </View>
+            <TouchableOpacity 
+              key={vault.id} 
+              style={styles.vaultCard}
+              onPress={() => handleOpenVault(vault)}
+              activeOpacity={0.7}
+            >
+              {/* Indicador de cor */}
+              <View style={[styles.vaultColorIndicator, { backgroundColor: vault.icon || '#AB9FF3' }]} />
               
-              <View style={styles.vaultSecurityBadge}>
-                <Text style={styles.vaultSecurityText}>
-                  🔒 Votação própria bloqueada
-                </Text>
+              <View style={styles.vaultCardContent}>
+                {/* Header com nome */}
+                <View style={styles.vaultCardHeader}>
+                  <Text style={styles.vaultName} numberOfLines={1}>
+                    {vault.name}
+                  </Text>
+                  <View style={styles.vaultMembersBadge}>
+                    <Text style={styles.vaultMembersBadgeText}>
+                      👥 {vault.stats.totalMembers}
+                    </Text>
+                  </View>
+                </View>
+                
+                {/* Descrição (se houver) */}
+                {vault.description && vault.description.trim() !== '' && (
+                  <Text style={styles.vaultDescription} numberOfLines={2}>
+                    {vault.description}
+                  </Text>
+                )}
+                
+                {/* Informações principais */}
+                <View style={styles.vaultInfoRow}>
+                  <View style={styles.vaultInfoItem}>
+                    <Text style={styles.vaultInfoLabel}>Membros:</Text>
+                    <Text style={styles.vaultInfoValue}>{vault.stats.totalMembers}</Text>
+                  </View>
+                  
+                  <View style={styles.vaultInfoDivider} />
+                  
+                  <View style={styles.vaultInfoItem}>
+                    <Text style={styles.vaultInfoLabel}>Valor do caixa $:</Text>
+                    <Text style={styles.vaultInfoValue}>{vault.balance.toFixed(0)}</Text>
+                  </View>
+                </View>
+                
+                {/* Badge de segurança */}
+                <View style={styles.vaultSecurityBadge}>
+                  <Text style={styles.vaultSecurityText}>
+                    🔒 Votação própria bloqueada
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
           ))
@@ -369,6 +551,24 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
                 )}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={isLoading && (showCreateConfig || showCreateDetails || showCreateInvite)}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, { alignItems: 'center' }]}>
+            <ActivityIndicator size="large" color="#AB9FF3" />
+            <Text style={[styles.modalTitle, { marginTop: 20 }]}>
+              Criando caixa...
+            </Text>
+            <Text style={{ color: '#999', textAlign: 'center', marginTop: 8 }}>
+              Aguarde enquanto processamos sua solicitação
+            </Text>
           </View>
         </View>
       </Modal>
