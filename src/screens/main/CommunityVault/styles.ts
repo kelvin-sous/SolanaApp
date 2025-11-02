@@ -125,92 +125,47 @@ export const styles = StyleSheet.create({
     marginTop: 10,
   },
   
-  // Cards de Caixas ATUALIZADOS
+  // Cards de Caixas - VISUAL SIMPLIFICADO FIEL AO FIGMA
   vaultCard: {
     backgroundColor: '#373737',
     borderRadius: 16,
     marginVertical: 8,
-    overflow: 'hidden',
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#444444',
   },
-  vaultColorIndicator: {
-    width: '100%',
-    height: 6,
+  vaultCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 16,
   },
-  vaultCardContent: {
-    padding: 16,
-  },
-  vaultCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+  vaultInfo: {
+    flex: 1,
+    justifyContent: 'center',
   },
   vaultName: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
-    flex: 1,
-    marginRight: 8,
+    marginBottom: 8,
   },
-  vaultMembersBadge: {
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  vaultStats: {
+    gap: 4,
   },
-  vaultMembersBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  vaultDescription: {
-    color: '#CCCCCC',
+  vaultStatText: {
     fontSize: 13,
     lineHeight: 18,
-    marginBottom: 12,
   },
-  vaultInfoRow: {
-    flexDirection: 'row',
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 12,
-  },
-  vaultInfoItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  vaultInfoLabel: {
+  vaultStatLabel: {
     color: '#999999',
-    fontSize: 11,
-    marginBottom: 4,
-    textAlign: 'center',
+    fontWeight: '400',
   },
-  vaultInfoValue: {
+  vaultStatValue: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  vaultInfoDivider: {
-    width: 1,
-    backgroundColor: '#444444',
-    marginHorizontal: 12,
-  },
-  vaultSecurityBadge: {
-    backgroundColor: 'rgba(171, 159, 243, 0.1)',
-    borderRadius: 8,
-    padding: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(171, 159, 243, 0.2)',
-  },
-  vaultSecurityText: {
-    color: '#AB9FF3',
-    fontSize: 11,
-    textAlign: 'center',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   
   // Nota de segurança
