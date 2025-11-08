@@ -14,6 +14,7 @@ import {
   StatusBar,
   RefreshControl
 } from 'react-native';
+import { testFirebaseConnection } from '../../../services/firebase/testFirebase';
 import { PublicKey } from '@solana/web3.js';
 import * as SecureStore from 'expo-secure-store';
 import { styles } from './styles';
@@ -65,6 +66,7 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
 
   useEffect(() => {
     loadUserVaults();
+    testFirebaseConnection();
   }, []);
 
   const loadUserVaults = async () => {

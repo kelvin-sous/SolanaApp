@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "420889077561",
+    "project_id": "solana-wallet-app",
+    "storage_bucket": "solana-wallet-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:420889077561:android:f497a612c2ba7ed3322ae8",
+        "android_client_info": {
+          "package_name": "com.tccsolana.walletapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyABMXR07edPAdnDJBB_lrZY7Vv5W9gr9xY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
