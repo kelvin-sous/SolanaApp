@@ -10,32 +10,18 @@ import {
   Image,
   Alert,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { PublicKey } from '@solana/web3.js';
 import * as SecureStore from 'expo-secure-store';
 import { styles } from './invitesStyles';
+import { FirebaseService, VaultInvite } from '../../../services/firebase/FirebaseService';
 
 interface InvitesScreenProps {
   onBack: () => void;
   publicKey: PublicKey;
 }
 
-interface VaultInvite {
-  id: string;
-  vaultId: string;
-  vaultName: string;
-  vaultColor: string;
-  inviterWallet: string;
-  invitedWallet: string;
-  role: string;
-  members: number;
-  balance: number;
-  invitedAt: Date;
-  expiresAt: Date;
-  status?: string;
-}
-
-const INVITES_STORAGE_KEY = 'vault_invites';
 const VAULTS_STORAGE_KEY = 'community_vaults';
 
 const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
@@ -57,46 +43,14 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
     setIsLoading(true);
     try {
       const myWallet = publicKey.toString();
-      console.log('=== CARREGANDO CONVITES ===');
+      console.log('=== CARREGANDO CONVITES DO FIREBASE ===');
       console.log('Minha wallet:', myWallet);
       
-      const storedInvites = await SecureStore.getItemAsync(INVITES_STORAGE_KEY);
-      console.log('Storage existe?', !!storedInvites);
+      const firebaseInvites = await FirebaseService.getUserInvites(myWallet);
       
-      if (storedInvites) {
-        const allInvites = JSON.parse(storedInvites);
-        console.log(`Total de convites no storage: ${allInvites.length}`);
-        
-        // Mostrar todos os convites para debug
-        allInvites.forEach((inv: any, index: number) => {
-          console.log(`Convite ${index + 1}:`);
-          console.log(`  - Caixa: ${inv.vaultName}`);
-          console.log(`  - Para: ${inv.invitedWallet}`);
-          console.log(`  - Status: ${inv.status}`);
-          console.log(`  - É meu? ${inv.invitedWallet === myWallet}`);
-          console.log(`  - Está pendente? ${inv.status === 'pending'}`);
-        });
-        
-        // Filtrar convites para o usuário atual e converter datas
-        const userInvites = allInvites
-          .filter((invite: any) => {
-            const isForMe = invite.invitedWallet === myWallet;
-            const isPending = invite.status === 'pending';
-            return isForMe && isPending;
-          })
-          .map((invite: any) => ({
-            ...invite,
-            invitedAt: new Date(invite.invitedAt),
-            expiresAt: new Date(invite.expiresAt)
-          }));
-        
-        console.log(`Convites filtrados para mim: ${userInvites.length}`);
-        setInvites(userInvites);
-      } else {
-        console.log('Nenhum convite encontrado no storage');
-        setInvites([]);
-      }
-      console.log('===========================');
+      console.log(`Convites encontrados: ${firebaseInvites.length}`);
+      setInvites(firebaseInvites);
+      console.log('=======================================');
     } catch (error) {
       console.error('Erro ao carregar convites:', error);
       setInvites([]);
@@ -112,7 +66,7 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
       console.log('=== ACEITANDO CONVITE ===');
       console.log('Convite:', invite.vaultName);
       
-      // 1. Buscar o caixa
+      // 1. Buscar o caixa no SecureStore
       const storedVaults = await SecureStore.getItemAsync(VAULTS_STORAGE_KEY);
       
       if (!storedVaults) {
@@ -146,22 +100,15 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
       console.log('Membro adicionado ao caixa');
       console.log('Total de membros agora:', allVaults[vaultIndex].stats.totalMembers);
       
-      // Salvar caixa atualizado
+      // Salvar caixa atualizado no SecureStore
       await SecureStore.setItemAsync(VAULTS_STORAGE_KEY, JSON.stringify(allVaults));
-      console.log('Caixa atualizado no storage');
+      console.log('Caixa atualizado no SecureStore');
       
-      // 3. Atualizar status do convite para 'accepted'
-      const storedInvites = await SecureStore.getItemAsync(INVITES_STORAGE_KEY);
-      const allInvites = storedInvites ? JSON.parse(storedInvites) : [];
-      
-      const updatedInvites = allInvites.map((inv: any) => 
-        inv.id === invite.id 
-          ? { ...inv, status: 'accepted', acceptedAt: new Date().toISOString() }
-          : inv
-      );
-      
-      await SecureStore.setItemAsync(INVITES_STORAGE_KEY, JSON.stringify(updatedInvites));
-      console.log('Status do convite atualizado para "accepted"');
+      // 3. Atualizar status do convite no Firebase
+      if (invite.id) {
+        await FirebaseService.acceptInvite(invite.id);
+        console.log('Status do convite atualizado no Firebase');
+      }
       
       // 4. Remover da lista local
       const remainingInvites = invites.filter(i => i.id !== invite.id);
@@ -201,18 +148,11 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
               console.log('=== RECUSANDO CONVITE ===');
               console.log('Convite:', invite.vaultName);
               
-              // Atualizar status do convite para 'rejected'
-              const storedInvites = await SecureStore.getItemAsync(INVITES_STORAGE_KEY);
-              const allInvites = storedInvites ? JSON.parse(storedInvites) : [];
-              
-              const updatedInvites = allInvites.map((inv: any) => 
-                inv.id === invite.id 
-                  ? { ...inv, status: 'rejected', rejectedAt: new Date().toISOString() }
-                  : inv
-              );
-              
-              await SecureStore.setItemAsync(INVITES_STORAGE_KEY, JSON.stringify(updatedInvites));
-              console.log('Status do convite atualizado para "rejected"');
+              // Atualizar status do convite no Firebase
+              if (invite.id) {
+                await FirebaseService.rejectInvite(invite.id);
+                console.log('Status do convite atualizado no Firebase');
+              }
               
               // Remover da lista local
               const remainingInvites = invites.filter(i => i.id !== invite.id);
@@ -263,7 +203,12 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {invites.length === 0 ? (
+        {isLoading && invites.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <ActivityIndicator size="large" color="#AB9FF3" />
+            <Text style={styles.emptyText}>Carregando convites...</Text>
+          </View>
+        ) : invites.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Image 
               source={require('../../../../assets/icons/phantom.png')}

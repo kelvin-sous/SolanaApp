@@ -14,7 +14,6 @@ import {
   StatusBar,
   RefreshControl
 } from 'react-native';
-import { testFirebaseConnection } from '../../../services/firebase/testFirebase';
 import { PublicKey } from '@solana/web3.js';
 import * as SecureStore from 'expo-secure-store';
 import { styles } from './styles';
@@ -24,6 +23,7 @@ import CreateVaultDetailsScreen from './CreateVaultDetailsScreen';
 import CreateVaultInviteScreen from './CreateVaultInviteScreen';
 import VaultDetailsScreen from './VaultDetailsScreen';
 import InvitesScreen from './InvitesScreen';
+import { FirebaseService } from '../../../services/firebase/FirebaseService';
 
 interface CommunityVaultScreenProps {
   onBack: () => void;
@@ -66,7 +66,6 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
 
   useEffect(() => {
     loadUserVaults();
-    testFirebaseConnection();
   }, []);
 
   const loadUserVaults = async () => {
@@ -85,12 +84,12 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
         const userVaults = allVaults
           .filter((vault: any) => {
             const isCreator = vault.creator === publicKey.toString();
-            const isMember = vault.members?.some((member: any) => 
+            const isMember = vault.members?.some((member: any) =>
               member.publicKey === publicKey.toString()
             );
-            
+
             console.log(`Caixa "${vault.name}": isCreator=${isCreator}, isMember=${isMember}`);
-            
+
             return isCreator || isMember;
           })
           .map((vault: any) => ({
@@ -242,58 +241,50 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
         }
       };
 
-      // Salvar o caixa
+      // Salvar o caixa no SecureStore
       const storedVaults = await SecureStore.getItemAsync(VAULTS_STORAGE_KEY);
       const allVaults = storedVaults ? JSON.parse(storedVaults) : [];
       allVaults.push(newVault);
       await SecureStore.setItemAsync(VAULTS_STORAGE_KEY, JSON.stringify(allVaults));
 
-      console.log('Caixa salvo com sucesso!');
+      console.log('Caixa salvo no SecureStore com sucesso!');
 
-      // ===== CRIAR CONVITES INDIVIDUAIS =====
+      // ===== CRIAR CONVITES NO FIREBASE =====
       if (invites.length > 0) {
-        const INVITES_STORAGE_KEY = 'vault_invites';
-        const storedInvites = await SecureStore.getItemAsync(INVITES_STORAGE_KEY);
-        const allInvites = storedInvites ? JSON.parse(storedInvites) : [];
+        console.log('=== CRIANDO CONVITES NO FIREBASE ===');
+        console.log(`Total de convites a criar: ${invites.length}`);
 
-        // Criar um convite para cada pessoa convidada
-        const newInvites = invites.map((invite, index) => ({
-          id: `invite_${Date.now()}_${index}`,
-          vaultId: newVault.id,
-          vaultName: newVault.name,
-          vaultColor: newVault.icon,
-          inviterWallet: publicKey.toString(),
-          invitedWallet: invite.wallet,
-          role: invite.role,
-          members: newVault.stats.totalMembers,
-          balance: newVault.balance,
-          invitedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          status: 'pending'
-        }));
+        for (const invite of invites) {
+          try {
+            await FirebaseService.createInvite({
+              vaultId: newVault.id,
+              vaultName: newVault.name,
+              vaultColor: newVault.icon || '#AB9FF3', // CORRIGIDO: garantir que não seja undefined
+              inviterWallet: publicKey.toString(),
+              invitedWallet: invite.wallet,
+              role: invite.role,
+              members: newVault.stats.totalMembers,
+              balance: newVault.balance,
+              invitedAt: new Date().toISOString(),
+              expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              status: 'pending'
+            });
 
-        // Adicionar os novos convites à lista existente
-        const updatedInvites = [...allInvites, ...newInvites];
-        await SecureStore.setItemAsync(INVITES_STORAGE_KEY, JSON.stringify(updatedInvites));
+            console.log(`Convite enviado para: ${invite.wallet}`);
+          } catch (error) {
+            console.error(`Erro ao criar convite para ${invite.wallet}:`, error);
+          }
+        }
 
-        console.log('=== CONVITES CRIADOS ===');
-        console.log(`Total de convites criados: ${newInvites.length}`);
-        newInvites.forEach((inv, index) => {
-          console.log(`Convite ${index + 1}:`);
-          console.log(`  - ID: ${inv.id}`);
-          console.log(`  - Caixa: ${inv.vaultName}`);
-          console.log(`  - Para: ${inv.invitedWallet}`);
-          console.log(`  - Cargo: ${inv.role}`);
-          console.log(`  - Status: ${inv.status}`);
-        });
-        console.log('========================');
+        console.log('=== CONVITES CRIADOS NO FIREBASE ===');
       }
+      // ======================================
 
       setTimeout(() => {
         setIsLoading(false);
 
         Alert.alert(
-          '🎉 Caixa Criado!',
+          'Caixa Criado!',
           `Nome: ${vaultDetails.name}\nMembros convidados: ${invites.length}\nCódigo: ${newVault.inviteCode}\n\nOs convites foram enviados e expiram em 7 dias.`,
           [{
             text: 'OK',
