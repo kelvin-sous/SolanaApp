@@ -74,46 +74,32 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
       console.log('=== CARREGANDO CAIXAS DO USUÁRIO ===');
       console.log('Minha wallet:', publicKey.toString());
 
-      const storedVaults = await SecureStore.getItemAsync(VAULTS_STORAGE_KEY);
+      // Buscar caixas do Firebase
+      const firebaseVaults = await FirebaseService.getUserVaults(publicKey.toString());
 
-      if (storedVaults) {
-        const allVaults = JSON.parse(storedVaults);
-        console.log(`Total de caixas no storage: ${allVaults.length}`);
+      // Converter para o formato correto
+      const userVaults = firebaseVaults.map((vault: any) => ({
+        ...vault,
+        creator: new PublicKey(vault.creator),
+        createdAt: vault.createdAt?.toDate ? vault.createdAt.toDate() : new Date(vault.createdAt),
+        updatedAt: vault.updatedAt?.toDate ? vault.updatedAt.toDate() : new Date(vault.updatedAt),
+        stats: {
+          ...vault.stats,
+          lastActivity: vault.stats.lastActivity?.toDate ? vault.stats.lastActivity.toDate() : new Date()
+        },
+        members: vault.members?.map((memberWallet: string) => ({
+          publicKey: new PublicKey(memberWallet),
+          role: vault.memberRoles?.[memberWallet] || 'GUEST',
+          joinedAt: new Date(),
+          nickname: formatWallet(memberWallet),
+          depositedAmount: 0,
+          withdrawnAmount: 0
+        })) || []
+      }));
 
-        // FILTRO CORRIGIDO: Por creator OU por membro
-        const userVaults = allVaults
-          .filter((vault: any) => {
-            const isCreator = vault.creator === publicKey.toString();
-            const isMember = vault.members?.some((member: any) =>
-              member.publicKey === publicKey.toString()
-            );
-
-            console.log(`Caixa "${vault.name}": isCreator=${isCreator}, isMember=${isMember}`);
-
-            return isCreator || isMember;
-          })
-          .map((vault: any) => ({
-            ...vault,
-            createdAt: new Date(vault.createdAt),
-            updatedAt: new Date(vault.updatedAt),
-            stats: {
-              ...vault.stats,
-              lastActivity: new Date(vault.stats.lastActivity)
-            },
-            members: vault.members?.map((member: any) => ({
-              ...member,
-              joinedAt: new Date(member.joinedAt)
-            })) || []
-          }));
-
-        console.log(`Encontrados ${userVaults.length} caixas do usuário`);
-        console.log('====================================');
-        setVaults(userVaults);
-      } else {
-        console.log('Nenhum caixa encontrado no storage');
-        console.log('====================================');
-        setVaults([]);
-      }
+      console.log(`Encontrados ${userVaults.length} caixas do usuário`);
+      console.log('====================================');
+      setVaults(userVaults);
 
       setIsLoading(false);
     } catch (error) {
@@ -121,6 +107,11 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
       setVaults([]);
       setIsLoading(false);
     }
+  };
+
+  const formatWallet = (wallet: string) => {
+    if (wallet.length <= 8) return wallet;
+    return `${wallet.slice(0, 4)}...${wallet.slice(-4)}`;
   };
 
   const onRefresh = async () => {
@@ -188,11 +179,13 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
 
       setIsLoading(true);
 
+      const vaultId = `vault_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
       const newVault: CommunityVault = {
-        id: `vault_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: vaultId,
         name: vaultDetails.name,
         description: vaultDetails.description || '',
-        icon: vaultDetails.iconColor,
+        icon: vaultDetails.iconColor || '#AB9FF3',
         creator: new PublicKey(publicKey.toString()),
         balance: 0,
         members: [
@@ -241,12 +234,34 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
         }
       };
 
-      // Salvar o caixa no SecureStore
+      // ===== SALVAR NO FIREBASE =====
+      console.log('Salvando caixa no Firebase...');
+      await FirebaseService.createVault({
+        id: vaultId,
+        name: newVault.name,
+        description: newVault.description,
+        icon: newVault.icon,
+        creator: publicKey.toString(),
+        balance: newVault.balance,
+        members: [publicKey.toString()], // Array de wallets
+        memberRoles: {
+          [publicKey.toString()]: MemberRole.FOUNDER
+        },
+        settings: newVault.settings,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isActive: true,
+        inviteCode: newVault.inviteCode,
+        category: newVault.category,
+        stats: newVault.stats
+      });
+      console.log('Caixa salvo no Firebase com sucesso!');
+
+      // Salvar também no SecureStore (backup local)
       const storedVaults = await SecureStore.getItemAsync(VAULTS_STORAGE_KEY);
       const allVaults = storedVaults ? JSON.parse(storedVaults) : [];
       allVaults.push(newVault);
       await SecureStore.setItemAsync(VAULTS_STORAGE_KEY, JSON.stringify(allVaults));
-
       console.log('Caixa salvo no SecureStore com sucesso!');
 
       // ===== CRIAR CONVITES NO FIREBASE =====
@@ -257,9 +272,9 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
         for (const invite of invites) {
           try {
             await FirebaseService.createInvite({
-              vaultId: newVault.id,
+              vaultId: vaultId,
               vaultName: newVault.name,
-              vaultColor: newVault.icon || '#AB9FF3', // CORRIGIDO: garantir que não seja undefined
+              vaultColor: newVault.icon || '#AB9FF3',
               inviterWallet: publicKey.toString(),
               invitedWallet: invite.wallet,
               role: invite.role,
@@ -278,7 +293,6 @@ const CommunityVaultScreen: React.FC<CommunityVaultScreenProps> = ({ onBack, pub
 
         console.log('=== CONVITES CRIADOS NO FIREBASE ===');
       }
-      // ======================================
 
       setTimeout(() => {
         setIsLoading(false);

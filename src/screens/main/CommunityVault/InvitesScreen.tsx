@@ -12,6 +12,7 @@ import {
   Modal,
   ActivityIndicator,
 } from 'react-native';
+import firestore from '@react-native-firebase/firestore';
 import { PublicKey } from '@solana/web3.js';
 import * as SecureStore from 'expo-secure-store';
 import { styles } from './invitesStyles';
@@ -45,9 +46,9 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
       const myWallet = publicKey.toString();
       console.log('=== CARREGANDO CONVITES DO FIREBASE ===');
       console.log('Minha wallet:', myWallet);
-      
+
       const firebaseInvites = await FirebaseService.getUserInvites(myWallet);
-      
+
       console.log(`Convites encontrados: ${firebaseInvites.length}`);
       setInvites(firebaseInvites);
       console.log('=======================================');
@@ -62,65 +63,55 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
   const handleAcceptInvite = async (invite: VaultInvite) => {
     try {
       setIsLoading(true);
-      
+
       console.log('=== ACEITANDO CONVITE ===');
       console.log('Convite:', invite.vaultName);
-      
-      // 1. Buscar o caixa no SecureStore
-      const storedVaults = await SecureStore.getItemAsync(VAULTS_STORAGE_KEY);
-      
-      if (!storedVaults) {
-        throw new Error('Caixa não encontrado');
+      console.log('Vault ID:', invite.vaultId);
+
+      // 1. Buscar o caixa NO FIREBASE
+      const vaultDoc = await firestore()
+        .collection('vaults')
+        .doc(invite.vaultId)
+        .get();
+
+      if (!vaultDoc.exists) {
+        throw new Error('Caixa não encontrado no Firebase');
       }
-      
-      const allVaults = JSON.parse(storedVaults);
-      const vaultIndex = allVaults.findIndex((v: any) => v.id === invite.vaultId);
-      
-      if (vaultIndex === -1) {
-        throw new Error('Caixa não encontrado');
-      }
-      
-      console.log('Caixa encontrado:', allVaults[vaultIndex].name);
-      
-      // 2. Adicionar usuário aos membros do caixa
-      const newMember = {
-        publicKey: publicKey.toString(),
-        role: invite.role,
-        joinedAt: new Date().toISOString(),
-        nickname: formatWallet(publicKey.toString()),
-        depositedAmount: 0,
-        withdrawnAmount: 0
-      };
-      
-      allVaults[vaultIndex].members = allVaults[vaultIndex].members || [];
-      allVaults[vaultIndex].members.push(newMember);
-      allVaults[vaultIndex].stats.totalMembers += 1;
-      allVaults[vaultIndex].updatedAt = new Date().toISOString();
-      
-      console.log('Membro adicionado ao caixa');
-      console.log('Total de membros agora:', allVaults[vaultIndex].stats.totalMembers);
-      
-      // Salvar caixa atualizado no SecureStore
-      await SecureStore.setItemAsync(VAULTS_STORAGE_KEY, JSON.stringify(allVaults));
-      console.log('Caixa atualizado no SecureStore');
-      
+
+      const vaultData = vaultDoc.data();
+      console.log('Caixa encontrado no Firebase:', vaultData?.name);
+
+      // 2. Adicionar usuário aos membros do caixa no Firebase
+      const myWallet = publicKey.toString();
+
+      await firestore()
+        .collection('vaults')
+        .doc(invite.vaultId)
+        .update({
+          members: firestore.FieldValue.arrayUnion(myWallet),
+          [`memberRoles.${myWallet}`]: invite.role,
+          updatedAt: firestore.FieldValue.serverTimestamp()
+        });
+
+      console.log('Membro adicionado ao caixa no Firebase');
+
       // 3. Atualizar status do convite no Firebase
       if (invite.id) {
         await FirebaseService.acceptInvite(invite.id);
         console.log('Status do convite atualizado no Firebase');
       }
-      
+
       // 4. Remover da lista local
       const remainingInvites = invites.filter(i => i.id !== invite.id);
       setInvites(remainingInvites);
-      
+
       console.log('Convite aceito com sucesso!');
       console.log('=========================');
-      
+
       // Mostrar modal de sucesso
       setAcceptedVaultName(invite.vaultName);
       setShowSuccessModal(true);
-      
+
     } catch (error) {
       console.error('Erro ao aceitar convite:', error);
       Alert.alert('Erro', 'Não foi possível aceitar o convite. Tente novamente.');
@@ -144,23 +135,23 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
           onPress: async () => {
             try {
               setIsLoading(true);
-              
+
               console.log('=== RECUSANDO CONVITE ===');
               console.log('Convite:', invite.vaultName);
-              
+
               // Atualizar status do convite no Firebase
               if (invite.id) {
                 await FirebaseService.rejectInvite(invite.id);
                 console.log('Status do convite atualizado no Firebase');
               }
-              
+
               // Remover da lista local
               const remainingInvites = invites.filter(i => i.id !== invite.id);
               setInvites(remainingInvites);
-              
+
               console.log('Convite recusado com sucesso!');
               console.log('=========================');
-              
+
             } catch (error) {
               console.error('Erro ao recusar convite:', error);
               Alert.alert('Erro', 'Não foi possível recusar o convite.');
@@ -181,11 +172,11 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#262728" />
-      
+
       {/* Header */}
       <View style={styles.header}>
-        <Image 
-          source={require('../../../../assets/icons/moneyBranco.png')} 
+        <Image
+          source={require('../../../../assets/icons/moneyBranco.png')}
           style={styles.headerIcon}
           resizeMode="contain"
         />
@@ -198,7 +189,7 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
       <View style={styles.divider} />
 
       {/* Lista de Convites */}
-      <ScrollView 
+      <ScrollView
         style={styles.contentContainer}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -210,7 +201,7 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
           </View>
         ) : invites.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Image 
+            <Image
               source={require('../../../../assets/icons/phantom.png')}
               style={styles.emptyIcon}
               resizeMode="contain"
@@ -224,36 +215,36 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
             <View key={invite.id} style={styles.inviteCard}>
               {/* Círculo colorido */}
               <View style={[styles.vaultCircle, { backgroundColor: invite.vaultColor }]} />
-              
+
               {/* Informações do convite */}
               <View style={styles.inviteInfo}>
                 <Text style={styles.vaultName} numberOfLines={1}>
                   {invite.vaultName}
                 </Text>
-                
+
                 <View style={styles.statsRow}>
                   <Text style={styles.statText}>
                     <Text style={styles.statLabel}>Membros: </Text>
                     <Text style={styles.statValue}>{invite.members}</Text>
                   </Text>
-                  
+
                   <Text style={styles.statText}>
                     <Text style={styles.statLabel}>Valor do caixa $: </Text>
                     <Text style={styles.statValue}>{invite.balance}</Text>
                   </Text>
                 </View>
-                
+
                 {/* Botões de Ação */}
                 <View style={styles.actionButtons}>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.rejectButton}
                     onPress={() => handleRejectInvite(invite)}
                     disabled={isLoading}
                   >
                     <Text style={styles.rejectButtonText}>Recusar</Text>
                   </TouchableOpacity>
-                  
-                  <TouchableOpacity 
+
+                  <TouchableOpacity
                     style={styles.acceptButton}
                     onPress={() => handleAcceptInvite(invite)}
                     disabled={isLoading}
@@ -269,7 +260,7 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
 
       {/* Botão Voltar */}
       <View style={styles.bottomContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={onBack}
           activeOpacity={0.8}
@@ -290,8 +281,8 @@ const InvitesScreen: React.FC<InvitesScreenProps> = ({ onBack, publicKey }) => {
             <Text style={styles.modalTitle}>
               Você entrou em "{acceptedVaultName}"
             </Text>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.modalButton}
               onPress={handleCloseSuccessModal}
             >

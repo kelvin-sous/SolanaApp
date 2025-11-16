@@ -230,14 +230,28 @@ class PhantomService {
       if (queryParams.errorCode) {
         const errorMessage = `Phantom Error: ${queryParams.errorMessage || 'Usuário cancelou ou erro desconhecido'}`;
 
-        // Rejeitar conexão se pendente
+        // 🔥 NOVO: Ignorar erro "method not supported" silenciosamente
+        if (queryParams.errorMessage && queryParams.errorMessage.includes('not supported')) {
+          console.log('⚠️ Método não suportado (ignorado - fallback automático)');
+
+          // Limpar dados de transação sem rejeitar
+          if (this.currentTransactionData) {
+            clearTimeout(this.currentTransactionData.timeout);
+            this.currentTransactionData = null;
+          }
+
+          // NÃO rejeitar - deixar o fallback funcionar
+          return;
+        }
+
+        // Rejeitar conexão se pendente (outros erros)
         if (this.currentConnectionData) {
           this.currentConnectionData.reject(new Error(errorMessage));
           this.clearConnectionData();
           return;
         }
 
-        // Rejeitar transação se pendente
+        // Rejeitar transação se pendente (outros erros)
         if (this.currentTransactionData) {
           this.currentTransactionData.reject(new Error(errorMessage));
           this.clearTransactionData();
@@ -286,23 +300,9 @@ class PhantomService {
           return;
         } catch (error) {
           console.error('Erro ao descriptografar resposta de transação:', error);
-
-          // FALLBACK: Tentar método original de descriptografia
-          try {
-            const legacyResponse = await this.decryptTransactionResponse({
-              nonce: queryParams.nonce,
-              data: queryParams.data
-            });
-            console.log('Resposta descriptografada com método legacy:', legacyResponse.signature);
-            this.currentTransactionData.resolve(legacyResponse.signature);
-            this.clearTransactionData();
-            return;
-          } catch (legacyError) {
-            console.error('Método legacy também falhou:', legacyError);
-            this.currentTransactionData.reject(error instanceof Error ? error : new Error('Erro desconhecido'));
-            this.clearTransactionData();
-            return;
-          }
+          this.currentTransactionData.reject(error instanceof Error ? error : new Error('Erro desconhecido'));
+          this.clearTransactionData();
+          return;
         }
       }
 
@@ -357,48 +357,15 @@ class PhantomService {
    * Método híbrido que tenta múltiplas abordagens
    */
   async executeTransaction(transaction: Transaction): Promise<string> {
-    console.log('Executando transação com método híbrido melhorado...');
+    console.log('=== EXECUTANDO TRANSAÇÃO ===');
+    console.log('Método: SignTransaction + Manual Send (único compatível)');
 
     if (!this.currentSession) {
       throw new Error('Phantom não conectado. Conecte primeiro.');
     }
 
-    // Seguir recomendação oficial primeiro
-    const methods = [
-      { name: 'Official SignAndSendTransaction', method: () => this.signAndSendTransactionOfficial(transaction) },
-      { name: 'Official SignTransaction + Manual Send', method: () => this.signTransactionOfficial(transaction) },
-      { name: 'Legacy SignAndSend', method: () => this.signAndSendTransaction(transaction) },
-      { name: 'Legacy Sign Only + Manual Send', method: () => this.signTransaction(transaction) }
-    ];
-
-    for (const { name, method } of methods) {
-      try {
-        console.log(`Tentando: ${name}...`);
-        const signature = await method();
-        console.log(`Sucesso com ${name}:`, signature);
-        return signature;
-      } catch (error) {
-        console.log(`${name} falhou:`, error instanceof Error ? error.message : error);
-        // Limpar estado antes da próxima tentativa
-        this.clearTransactionData();
-        await this.delay(1000); // Pequena pausa entre tentativas
-      }
-    }
-
-    throw new Error('Todas as tentativas de transação falharam');
-  }
-
-  /**
-   * NOVO: SignAndSendTransaction seguindo documentação oficial EXATA
-   */
-  private async signAndSendTransactionOfficial(transaction: Transaction): Promise<string> {
     try {
-      console.log('Iniciando SignAndSendTransaction oficial...');
-
-      if (!this.currentSession) {
-        throw new Error('Sessão não encontrada');
-      }
-
+      // Serializar transação
       const serializedTransaction = transaction.serialize({
         requireAllSignatures: false,
         verifySignatures: false
@@ -407,74 +374,8 @@ class PhantomService {
 
       console.log('Transação serializada:', transactionBase58.length, 'chars');
 
-      // Payload EXATO da documentação
-      const payload: SignAndSendTransactionPayload = {
-        transaction: transactionBase58,
-        sendOptions: {
-          skipPreflight: false,
-          preflightCommitment: 'processed',
-          maxRetries: 3
-        },
-        session: this.currentSession.session
-      };
-
-      const nonce = await this.generateSecureRandomBytes(24);
-      const nonceBase58 = bs58.encode(nonce);
-      const encryptedPayload = await this.encryptPayloadOfficial(payload, nonce);
-
-      const redirectLink = Linking.createURL(`phantom-transaction-${Date.now()}`, {
-        scheme: APP_CONFIG.DEEP_LINK_SCHEME
-      });
-
-      // URL seguindo documentação EXATA
-      const baseUrl = 'https://phantom.app/ul/v1/signAndSendTransaction';
-      const urlParams = new URLSearchParams({
-        dapp_encryption_public_key: bs58.encode(this.currentSession.dappKeyPair.publicKey),
-        nonce: nonceBase58,
-        redirect_link: redirectLink,
-        payload: encryptedPayload
-      });
-
-      const finalUrl = `${baseUrl}?${urlParams.toString()}`;
-
-      console.log('URL oficial construída (tamanho):', finalUrl.length, 'chars');
-
-      const transactionPromise = this.createTransactionPromise();
-      const opened = await this.tryOpenPhantom(finalUrl);
-
-      if (!opened) {
-        throw new Error('Não foi possível abrir Phantom');
-      }
-
-      console.log('Aguardando resposta oficial...');
-      return await transactionPromise;
-
-    } catch (error) {
-      console.error('Erro em SignAndSendTransaction oficial:', error);
-      this.clearTransactionData();
-      throw error;
-    }
-  }
-
-  /**
-   * SignTransaction seguindo documentação oficial EXATA
-   */
-  private async signTransactionOfficial(transaction: Transaction): Promise<string> {
-    try {
-      console.log('Iniciando SignTransaction oficial...');
-
-      if (!this.currentSession) {
-        throw new Error('Sessão não encontrada');
-      }
-
-      const serializedTransaction = transaction.serialize({
-        requireAllSignatures: false,
-        verifySignatures: false
-      });
-      const transactionBase58 = bs58.encode(serializedTransaction);
-
-      // Payload EXATO da documentação (SEM sendOptions)
-      const payload: SignTransactionPayload = {
+      // Payload (SEM sendOptions - apenas transaction e session)
+      const payload = {
         transaction: transactionBase58,
         session: this.currentSession.session
       };
@@ -487,7 +388,7 @@ class PhantomService {
         scheme: APP_CONFIG.DEEP_LINK_SCHEME
       });
 
-      // URL seguindo documentação EXATA
+      // URL para signTransaction
       const baseUrl = 'https://phantom.app/ul/v1/signTransaction';
       const urlParams = new URLSearchParams({
         dapp_encryption_public_key: bs58.encode(this.currentSession.dappKeyPair.publicKey),
@@ -497,6 +398,7 @@ class PhantomService {
       });
 
       const finalUrl = `${baseUrl}?${urlParams.toString()}`;
+      console.log('URL construída:', finalUrl.length, 'chars');
 
       const transactionPromise = this.createTransactionPromise();
       const opened = await this.tryOpenPhantom(finalUrl);
@@ -505,7 +407,7 @@ class PhantomService {
         throw new Error('Não foi possível abrir Phantom');
       }
 
-      console.log('Aguardando assinatura oficial...');
+      console.log('Aguardando assinatura...');
 
       // Aguardar transação assinada
       const signedTransactionBase58 = await transactionPromise;
@@ -527,196 +429,15 @@ class PhantomService {
       // Confirmar transação
       await connection.confirmTransaction(signature, 'confirmed');
       console.log('Transação confirmada:', signature);
+      console.log('============================');
 
       return signature;
 
     } catch (error) {
-      console.error('Erro em SignTransaction oficial:', error);
+      console.error('Erro ao executar transação:', error);
       this.clearTransactionData();
       throw error;
     }
-  }
-
-  /**
-   * MANTIDO: Método melhorado original para transações com fallback
-   */
-  async signAndSendTransaction(transaction: Transaction): Promise<string> {
-    try {
-      console.log('Iniciando signAndSendTransaction legacy melhorado...');
-
-      if (!this.currentSession) {
-        throw new Error('Sessão Phantom não encontrada. Conecte primeiro.');
-      }
-
-      // Serializar transação
-      const serializedTransaction = transaction.serialize({
-        requireAllSignatures: false,
-        verifySignatures: false
-      });
-      const transactionBase58 = bs58.encode(serializedTransaction);
-
-      console.log('Transação serializada (tamanho):', transactionBase58.length, 'chars');
-
-      // TENTAR MÉTODO SIMPLES PRIMEIRO (sem criptografia)
-      try {
-        console.log('Tentativa 1: Método simples sem criptografia...');
-        const signature = await this.trySimpleSignAndSend(transactionBase58);
-        if (signature) {
-          console.log('Transação concluída via método simples!');
-          return signature;
-        }
-      } catch (error) {
-        console.log('Método simples falhou, tentando método criptografado...', error);
-      }
-
-      // 🔥 FALLBACK: MÉTODO CRIPTOGRAFADO ORIGINAL
-      console.log('Tentativa 2: Método criptografado completo...');
-      return await this.tryEncryptedSignAndSend(transaction, transactionBase58);
-
-    } catch (error) {
-      console.error('Erro em signAndSendTransaction legacy:', error);
-      this.clearTransactionData();
-      throw error;
-    }
-  }
-
-  /**
-   * MANTIDO: Método alternativo usando signTransaction (sem envio automático)
-   */
-  async signTransaction(transaction: Transaction): Promise<string> {
-    try {
-      console.log('Iniciando signTransaction legacy (apenas assinatura)...');
-
-      if (!this.currentSession) {
-        throw new Error('Sessão Phantom não encontrada. Conecte primeiro.');
-      }
-
-      const serializedTransaction = transaction.serialize({
-        requireAllSignatures: false,
-        verifySignatures: false
-      });
-      const transactionBase58 = bs58.encode(serializedTransaction);
-
-      const redirectLink = Linking.createURL(`phantom-sign-legacy-${Date.now()}`, {
-        scheme: APP_CONFIG.DEEP_LINK_SCHEME
-      });
-
-      // URL para apenas assinar (sem enviar)
-      const signUrl = `https://phantom.app/ul/v1/signTransaction?` +
-        `dapp_encryption_public_key=${bs58.encode(this.currentSession.dappKeyPair.publicKey)}&` +
-        `redirect_link=${encodeURIComponent(redirectLink)}&` +
-        `transaction=${transactionBase58}`;
-
-      console.log('URL de assinatura legacy:', signUrl.slice(0, 100) + '...');
-
-      const transactionPromise = this.createTransactionPromise();
-      const opened = await this.tryOpenPhantom(signUrl);
-
-      if (!opened) {
-        throw new Error('Não foi possível abrir Phantom para assinatura');
-      }
-
-      console.log('Aguardando assinatura legacy...');
-
-      // Para signTransaction, o retorno é a transação assinada, não a signature
-      const signedTransactionBase58 = await transactionPromise;
-
-      // Enviar a transação assinada via Solana RPC
-      const solanaService = SolanaService.getInstance();
-      const connection = solanaService.getConnection();
-
-      const signedTransactionBytes = bs58.decode(signedTransactionBase58);
-      const signature = await connection.sendRawTransaction(signedTransactionBytes, {
-        skipPreflight: false,
-        preflightCommitment: 'processed',
-      });
-
-      console.log('Transação enviada manualmente (legacy):', signature);
-
-      // Confirmar transação
-      await connection.confirmTransaction(signature, 'confirmed');
-      console.log('Transação confirmada (legacy):', signature);
-
-      return signature;
-
-    } catch (error) {
-      console.error('Erro em signTransaction legacy:', error);
-      this.clearTransactionData();
-      throw error;
-    }
-  }
-
-  /**
-   * Método simples sem criptografia
-   */
-  private async trySimpleSignAndSend(transactionBase58: string): Promise<string> {
-    // Criar URL simples sem payload criptografado
-    const redirectLink = Linking.createURL(`phantom-transaction-simple-${Date.now()}`, {
-      scheme: APP_CONFIG.DEEP_LINK_SCHEME
-    });
-
-    const simpleUrl = `https://phantom.app/ul/v1/signAndSendTransaction?` +
-      `dapp_encryption_public_key=${bs58.encode(this.currentSession!.dappKeyPair.publicKey)}&` +
-      `redirect_link=${encodeURIComponent(redirectLink)}&` +
-      `transaction=${transactionBase58}`;
-
-    console.log('URL simples (tamanho):', simpleUrl.length, 'chars');
-    console.log('URL simples:', simpleUrl.slice(0, 100) + '...');
-
-    // Configurar promessa
-    const transactionPromise = this.createTransactionPromise();
-
-    // Abrir Phantom
-    const opened = await this.tryOpenPhantom(simpleUrl);
-
-    if (!opened) {
-      throw new Error('Não foi possível abrir Phantom');
-    }
-
-    console.log('Aguardando resposta simples...');
-    return await transactionPromise;
-  }
-
-  /**
-   * Método criptografado original (fallback)
-   */
-  private async tryEncryptedSignAndSend(transaction: Transaction, transactionBase58: string): Promise<string> {
-    const payload: PhantomTransactionPayload = {
-      transaction: transactionBase58,
-      session: this.currentSession!.session,
-      sendOptions: {
-        skipPreflight: false,
-        preflightCommitment: 'processed',
-        maxRetries: 3
-      }
-    };
-
-    const nonce = await this.generateSecureRandomBytes(24);
-    const nonceBase58 = bs58.encode(nonce);
-    const encryptedPayload = await this.encryptTransactionPayload(payload, nonce);
-
-    const redirectLink = Linking.createURL(`phantom-transaction-encrypted-${Date.now()}`, {
-      scheme: APP_CONFIG.DEEP_LINK_SCHEME
-    });
-
-    const transactionUrl = this.buildSignAndSendUrl({
-      dapp_encryption_public_key: bs58.encode(this.currentSession!.dappKeyPair.publicKey),
-      nonce: nonceBase58,
-      redirect_link: redirectLink,
-      payload: encryptedPayload
-    });
-
-    console.log('URL criptografada legacy (tamanho):', transactionUrl.length, 'chars');
-
-    const transactionPromise = this.createTransactionPromise();
-    const opened = await this.tryOpenPhantom(transactionUrl);
-
-    if (!opened) {
-      throw new Error('Não foi possível abrir Phantom para transação criptografada');
-    }
-
-    console.log('Aguardando resposta criptografada legacy...');
-    return await transactionPromise;
   }
 
   // ========================================
@@ -797,73 +518,6 @@ class PhantomService {
   }
 
   /**
-   * Criptografa payload da transação - LEGACY
-   */
-  private async encryptTransactionPayload(
-    payload: PhantomTransactionPayload,
-    nonce: Uint8Array
-  ): Promise<string> {
-    try {
-      if (!this.currentSession) {
-        throw new Error('Sessão não encontrada para criptografia');
-      }
-
-      // Converter payload para JSON
-      const payloadJson = JSON.stringify(payload);
-      const payloadBytes = new TextEncoder().encode(payloadJson);
-
-      console.log('Criptografando payload legacy (tamanho):', payloadBytes.length, 'bytes');
-      console.log('Payload JSON legacy:', payloadJson);
-
-      // Criptografar usando sharedSecret
-      const encryptedData = nacl.box.after(
-        payloadBytes,
-        nonce,
-        this.currentSession.sharedSecret
-      );
-
-      if (!encryptedData) {
-        throw new Error('Falha ao criptografar payload da transação');
-      }
-
-      // Codificar em base58
-      const encryptedBase58 = bs58.encode(encryptedData);
-      console.log('Payload legacy criptografado (tamanho):', encryptedBase58.length, 'chars');
-
-      return encryptedBase58;
-
-    } catch (error) {
-      console.error('Erro ao criptografar payload legacy:', error);
-      throw new Error(`Falha na criptografia: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    }
-  }
-
-  /**
-   * MANTIDO: Constrói URL para signAndSendTransaction
-   */
-  private buildSignAndSendUrl(params: PhantomSendTransactionParams): string {
-    const baseUrl = 'https://phantom.app/ul/v1/signAndSendTransaction';
-
-    const urlParams = new URLSearchParams({
-      dapp_encryption_public_key: params.dapp_encryption_public_key,
-      nonce: params.nonce,
-      redirect_link: encodeURIComponent(params.redirect_link),
-      payload: params.payload
-    });
-
-    const finalUrl = `${baseUrl}?${urlParams.toString()}`;
-
-    console.log('Construindo URL de transação legacy:');
-    console.log('  Base URL:', baseUrl);
-    console.log('  Dapp Key:', params.dapp_encryption_public_key.slice(0, 10) + '...');
-    console.log('  Nonce:', params.nonce.slice(0, 10) + '...');
-    console.log('  Redirect:', params.redirect_link);
-    console.log('  Payload:', params.payload.slice(0, 20) + '...');
-
-    return finalUrl;
-  }
-
-  /**
    * MANTIDO: Cria promessa para aguardar resposta da transação
    */
   private createTransactionPromise(): Promise<string> {
@@ -896,52 +550,6 @@ class PhantomService {
 
       console.log('Promessa de transação criada, aguardando resposta...');
     });
-  }
-
-  /**
-   * MANTIDO: Descriptografa resposta de transação - LEGACY
-   */
-  private async decryptTransactionResponse(params: {
-    nonce: string;
-    data: string;
-  }): Promise<PhantomTransactionResponse> {
-    try {
-      if (!this.currentSession) {
-        throw new Error('Sessão não encontrada para descriptografia');
-      }
-
-      const nonceBytes = bs58.decode(params.nonce);
-      const encryptedData = bs58.decode(params.data);
-
-      console.log('Descriptografando resposta de transação legacy...');
-
-      // Descriptografar usando sharedSecret
-      const decryptedData = nacl.box.open.after(
-        encryptedData,
-        nonceBytes,
-        this.currentSession.sharedSecret
-      );
-
-      if (!decryptedData) {
-        throw new Error('Falha ao descriptografar resposta de transação');
-      }
-
-      // Converter para string e parsear JSON
-      const textDecoder = new TextDecoder();
-      const decryptedJson = textDecoder.decode(decryptedData);
-      const response: PhantomTransactionResponse = JSON.parse(decryptedJson);
-
-      console.log('Resposta legacy descriptografada:', {
-        hasSignature: !!response.signature,
-        signaturePreview: response.signature?.slice(0, 8) + '...'
-      });
-
-      return response;
-
-    } catch (error) {
-      console.error('Erro ao descriptografar resposta legacy:', error);
-      throw new Error(`Falha na descriptografia: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    }
   }
 
   /**
@@ -1342,52 +950,29 @@ class PhantomService {
    * Método específico para Android
    */
   private async tryOpenPhantomAndroid(connectUrl: string): Promise<boolean> {
-    console.log('CORREÇÃO: Iniciando processo Android simplificado...');
+    console.log('Iniciando processo Android...');
     console.log('URL length:', connectUrl.length);
 
-    // 🔥 ESTRATÉGIA 1: Universal Link PRIMEIRO (mais confiável)
     try {
-      console.log('CORREÇÃO: Tentativa Universal Link direto');
-      console.log('URL Universal:', connectUrl);
-
+      console.log('Abrindo Phantom via Universal Link...');
       await Linking.openURL(connectUrl);
-      console.log('CORREÇÃO: Universal Link enviado com sucesso');
+      console.log('Universal Link enviado com sucesso');
 
-      // 🔥 AGUARDAR 15 segundos para debug
-      console.log('CORREÇÃO: Aguardando 15 segundos para resposta...');
+      // 🔥 AGUARDAR 30 SEGUNDOS (aumentado)
+      console.log('Aguardando 30 segundos para resposta...');
       setTimeout(() => {
-        console.log('CORREÇÃO: Status após 15s:', {
-          connectionDataExists: !!this.currentConnectionData,
+        console.log('Status após 30s:', {
+          transactionDataExists: !!this.currentTransactionData,
           deepLinksRecebidos: this.debugDeepLinkCount,
           phantomJaRetornou: this.debugDeepLinkCount > 0
         });
-      }, 15000);
+      }, 30000); // 30 segundos
 
       return true;
     } catch (error) {
-      console.log('CORREÇÃO: Universal Link falhou:', error);
+      console.log('Erro ao abrir Phantom:', error);
+      return false;
     }
-
-    // ESTRATÉGIA 2: Deep link como fallback
-    try {
-      console.log('CORREÇÃO: Tentativa Deep link como fallback');
-      const url = new URL(connectUrl);
-      const phantomUrl = `phantom://ul/v1/connect?${url.searchParams.toString()}`;
-
-      const canOpenDeepLink = await Linking.canOpenURL('phantom://');
-      console.log('CORREÇÃO: Pode abrir phantom://:', canOpenDeepLink);
-
-      if (canOpenDeepLink) {
-        await Linking.openURL(phantomUrl);
-        console.log('CORREÇÃO: Deep link enviado como fallback');
-        return true;
-      }
-    } catch (error) {
-      console.log('CORREÇÃO: Deep link fallback falhou:', error);
-    }
-
-    console.log('CORREÇÃO: Ambos os métodos falharam');
-    return false;
   }
 
   /**
