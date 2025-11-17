@@ -14,11 +14,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
+  TextInput, // 🔥 ADICIONAR
 } from 'react-native';
 import { PublicKey } from '@solana/web3.js';
 import firestore from '@react-native-firebase/firestore';
 import { styles } from './vaultDetailsStyles';
-import { CommunityVault, MemberRole } from '../../../services/communityVault/types'; // 🔥 VERIFICAR ESTA LINHA
+import { CommunityVault, MemberRole } from '../../../services/communityVault/types';
 import { PriceService } from '../../../services/solana/PriceService';
 import { FirebaseService } from '../../../services/firebase/FirebaseService';
 import { VaultTransactionService } from '../../../services/vault/VaultTransactionService';
@@ -57,6 +58,14 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
   const [amount, setAmount] = useState('0');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // 🔥 ADICIONAR - Estados da aba de Informações
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedName, setEditedName] = useState(vault.name);
+  const [editedDescription, setEditedDescription] = useState(vault.description || '');
+  const [editedIcon, setEditedIcon] = useState(vault.icon || '#AB9FF3');
+  const [hasChanges, setHasChanges] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
   // Ref do ScrollView
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -66,6 +75,21 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
   // Obter role do usuário atual
   const myMember = vault.members?.find(m => m.publicKey.toString() === publicKey.toString());
   const myRole = myMember?.role || MemberRole.GUEST;
+
+  // 🔥 ADICIONAR - Verificar se usuário pode editar
+  const canEdit = myRole === 'FOUNDER' || myRole === 'ADMIN';
+
+  // 🔥 ADICIONAR - Cores disponíveis
+  const availableColors = [
+    '#AB9FF3', // Roxo
+    '#FF6B6B', // Vermelho
+    '#4ECDC4', // Azul claro
+    '#FFE66D', // Amarelo
+    '#95E1D3', // Verde água
+    '#F38181', // Rosa
+    '#AA96DA', // Lilás
+    '#FCBAD3', // Rosa claro
+  ];
 
   useEffect(() => {
     loadSolanaPrice();
@@ -90,7 +114,7 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
     return () => unsubscribe();
   }, [vault.id]);
 
-  // Scroll automático para o final quando novos eventos chegarem
+  // 🔥 ADICIONAR - Scroll automático para o final quando novos eventos chegarem
   useEffect(() => {
     if (events.length > 0 && scrollViewRef.current) {
       setTimeout(() => {
@@ -98,6 +122,15 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
       }, 100);
     }
   }, [events]);
+
+  // 🔥 ADICIONAR - Verificar alterações nos campos editáveis
+  useEffect(() => {
+    const nameChanged = editedName !== vault.name;
+    const descChanged = editedDescription !== (vault.description || '');
+    const iconChanged = editedIcon !== vault.icon;
+    
+    setHasChanges(nameChanged || descChanged || iconChanged);
+  }, [editedName, editedDescription, editedIcon, vault.name, vault.description, vault.icon]);
 
   const loadSolanaPrice = async () => {
     const priceData = await PriceService.getSolanaPrice();
@@ -369,6 +402,175 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
     }
   };
 
+  // Funções auxiliares para a aba de Informações
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'FOUNDER':
+        return 'Fundador';
+      case 'ADMIN':
+        return 'Administrador';
+      case 'MEMBER':
+        return 'Membro';
+      case 'GUEST':
+        return 'Convidado';
+      default:
+        return role;
+    }
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'FOUNDER':
+        return '#FFD700';
+      case 'ADMIN':
+        return '#AB9FF3';
+      case 'MEMBER':
+        return '#10B981';
+      case 'GUEST':
+        return '#6B7280';
+      default:
+        return '#6B7280';
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    try {
+      setIsSaving(true);
+
+      await firestore()
+        .collection('vaults')
+        .doc(vault.id)
+        .update({
+          name: editedName,
+          description: editedDescription,
+          icon: editedIcon,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+
+      await VaultEventsService.createSettingsChangedEvent(vault.id, publicKey);
+
+      Alert.alert('Sucesso', 'Informações atualizadas com sucesso!');
+      setHasChanges(false);
+      setIsEditing(false);
+
+    } catch (error) {
+      console.error('Erro ao salvar alterações:', error);
+      Alert.alert('Erro', 'Não foi possível salvar as alterações');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditedName(vault.name);
+    setEditedDescription(vault.description || '');
+    setEditedIcon(vault.icon || '#AB9FF3');
+    setIsEditing(false);
+    setHasChanges(false);
+  };
+
+  const handleChangeMemberRole = async (memberWallet: string, newRole: string) => {
+    try {
+      if (memberWallet === publicKey.toString()) {
+        Alert.alert('Atenção', 'Você não pode alterar seu próprio cargo');
+        return;
+      }
+
+      if (myRole !== 'FOUNDER' && (newRole === 'ADMIN' || newRole === 'FOUNDER')) {
+        Alert.alert('Atenção', 'Apenas o fundador pode promover membros');
+        return;
+      }
+
+      Alert.alert(
+        'Alterar Cargo',
+        `Deseja alterar o cargo deste membro para ${getRoleLabel(newRole)}?`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Confirmar',
+            onPress: async () => {
+              const updatedMembers = vault.members.map(m =>
+                m.publicKey.toString() === memberWallet
+                  ? { ...m, role: newRole }
+                  : m
+              );
+
+              await firestore()
+                .collection('vaults')
+                .doc(vault.id)
+                .update({
+                  members: updatedMembers.map(m => ({
+                    publicKey: m.publicKey.toString(),
+                    role: m.role,
+                    joinedAt: m.joinedAt,
+                    nickname: m.nickname,
+                  })),
+                  updatedAt: firestore.FieldValue.serverTimestamp(),
+                });
+
+              Alert.alert('Sucesso', 'Cargo alterado com sucesso!');
+            }
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error('Erro ao alterar cargo:', error);
+      Alert.alert('Erro', 'Não foi possível alterar o cargo');
+    }
+  };
+
+  const handleRemoveMember = async (memberWallet: string) => {
+    try {
+      if (memberWallet === publicKey.toString()) {
+        Alert.alert('Atenção', 'Você não pode se remover do caixa');
+        return;
+      }
+
+      const member = vault.members.find(m => m.publicKey.toString() === memberWallet);
+      if (member?.role === 'FOUNDER') {
+        Alert.alert('Atenção', 'O fundador não pode ser removido');
+        return;
+      }
+
+      Alert.alert(
+        'Remover Membro',
+        'Deseja realmente remover este membro do caixa?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Remover',
+            style: 'destructive',
+            onPress: async () => {
+              const updatedMembers = vault.members.filter(
+                m => m.publicKey.toString() !== memberWallet
+              );
+
+              await firestore()
+                .collection('vaults')
+                .doc(vault.id)
+                .update({
+                  members: updatedMembers.map(m => ({
+                    publicKey: m.publicKey.toString(),
+                    role: m.role,
+                    joinedAt: m.joinedAt,
+                    nickname: m.nickname,
+                  })),
+                  updatedAt: firestore.FieldValue.serverTimestamp(),
+                });
+
+              Alert.alert('Sucesso', 'Membro removido com sucesso!');
+            }
+          }
+        ]
+      );
+
+    } catch (error) {
+      console.error('Erro ao remover membro:', error);
+      Alert.alert('Erro', 'Não foi possível remover o membro');
+    }
+  };
+
   const handleVote = async (eventId: string, voteType: 'approve' | 'reject') => {
     try {
       console.log(`Votando ${voteType} no evento ${eventId}`);
@@ -396,8 +598,8 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
             return;
           }
 
-          // 🔥 EXECUTAR SAQUE AUTOMATICAMENTE
-          console.log('💸 Executando saque aprovado...');
+          //  EXECUTAR SAQUE AUTOMATICAMENTE
+          console.log(' Executando saque aprovado...');
 
           const recipientPublicKey = new PublicKey(requestData.wallet);
           const withdrawResult = await VaultTransactionService.executeApprovedWithdraw(
@@ -414,7 +616,7 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
             const requesterMember = vault.members?.find(
               m => m.publicKey.toString() === requestData.wallet
             );
-            const requesterRole = requesterMember?.role || MemberRole.MEMBER;
+            const requesterRole = requesterMember?.role || 'MEMBER';
 
             await VaultEventsService.createWithdrawEvent(
               vault.id,
@@ -580,8 +782,11 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
       // ========================================
 
       case 'deposit_request':
-        const canVoteDeposit = event.canVote && !isMine;
-        const depositVotes = event.votes || { favor: 0, against: 0, total: 1 };
+        // Verificar se o usuário atual já votou
+        const depositUserVoted = event.voters && event.voters[publicKey.toString()];
+        const canVoteDeposit = !isMine && !depositUserVoted;
+
+        const depositVotes = event.votes || { favor: 0, against: 0, total: vault.members?.length || 1 };
         const depositProgress = (depositVotes.favor / depositVotes.total) * 100;
 
         return (
@@ -622,7 +827,7 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
               />
             </View>
 
-            {canVoteDeposit ? (
+            {canVoteDeposit && (
               <View style={styles.voteButtons}>
                 <TouchableOpacity
                   style={styles.voteButtonReject}
@@ -638,24 +843,14 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
                   <Text style={styles.voteButtonText}>Aprovar</Text>
                 </TouchableOpacity>
               </View>
-            ) : (
-              <View style={styles.voteStatus}>
-                <Text style={styles.voteStatusText}>
-                  {isMine
-                    ? 'Você não pode votar em sua própria solicitação'
-                    : event.userVote
-                      ? `Você votou em "${event.userVote === 'favor' ? 'a favor' : 'contra'}"`
-                      : 'Aguardando votação'}
-                </Text>
-              </View>
             )}
           </View>
         );
 
       case 'withdraw_request':
-        // Verificar se o usuário atual pode votar
-        const hasVoted = event.voters && event.voters[publicKey.toString()];
-        const canVoteWithdraw = !isMine && !hasVoted;
+        // Verificar se o usuário atual já votou
+        const userVoted = event.voters && event.voters[publicKey.toString()];
+        const canVoteWithdraw = !isMine && !userVoted;
 
         const withdrawVotes = event.votes || { favor: 0, against: 0, total: vault.members?.length || 1 };
         const withdrawProgress = (withdrawVotes.favor / withdrawVotes.total) * 100;
@@ -698,7 +893,7 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
               />
             </View>
 
-            {canVoteWithdraw ? (
+            {canVoteWithdraw && (
               <View style={styles.voteButtons}>
                 <TouchableOpacity
                   style={styles.voteButtonReject}
@@ -713,16 +908,6 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
                 >
                   <Text style={styles.voteButtonText}>Aprovar</Text>
                 </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.voteStatus}>
-                <Text style={styles.voteStatusText}>
-                  {isMine
-                    ? 'Você não pode votar em sua própria solicitação'
-                    : hasVoted
-                      ? `Você votou em "${hasVoted === 'favor' ? 'a favor' : 'contra'}"`
-                      : 'Aguardando votação'}
-                </Text>
               </View>
             )}
           </View>
@@ -789,12 +974,195 @@ const VaultDetailsScreen: React.FC<VaultDetailsScreenProps> = ({
 
   const renderInfoTab = () => {
     return (
-      <View style={styles.tabContent}>
-        <View style={styles.placeholderContainer}>
-          <Text style={styles.placeholderIcon}>ℹ️</Text>
-          <Text style={styles.placeholderText}>Informações em construção</Text>
+      <ScrollView style={styles.tabContent} showsVerticalScrollIndicator={false}>
+        <View style={styles.infoContainer}>
+
+          {/* Seção: Informações do Caixa */}
+          <View style={styles.infoSection}>
+            <View style={styles.infoSectionHeader}>
+              <Text style={styles.infoSectionTitle}>Informações do Caixa</Text>
+              {canEdit && !isEditing && (
+                <TouchableOpacity onPress={() => setIsEditing(true)}>
+                  <Text style={styles.editButton}>Editar</Text>
+                </TouchableOpacity>
+              )}
+              {isEditing && (
+                <TouchableOpacity onPress={handleCancelEdit}>
+                  <Text style={styles.cancelButton}>Cancelar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>Nome</Text>
+              {isEditing ? (
+                <TextInput
+                  style={styles.infoInput}
+                  value={editedName}
+                  onChangeText={setEditedName}
+                  placeholder="Nome do caixa"
+                  placeholderTextColor="#6B7280"
+                />
+              ) : (
+                <Text style={styles.infoValue}>{vault.name}</Text>
+              )}
+            </View>
+
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>Descrição</Text>
+              {isEditing ? (
+                <TextInput
+                  style={[styles.infoInput, styles.infoTextArea]}
+                  value={editedDescription}
+                  onChangeText={setEditedDescription}
+                  placeholder="Descrição do caixa"
+                  placeholderTextColor="#6B7280"
+                  multiline
+                  numberOfLines={3}
+                />
+              ) : (
+                <Text style={styles.infoValue}>
+                  {vault.description || 'Sem descrição'}
+                </Text>
+              )}
+            </View>
+
+            {isEditing && (
+              <View style={styles.infoField}>
+                <Text style={styles.infoLabel}>Cor do Ícone</Text>
+                <View style={styles.colorPicker}>
+                  {availableColors.map(color => (
+                    <TouchableOpacity
+                      key={color}
+                      style={[
+                        styles.colorOption,
+                        { backgroundColor: color },
+                        editedIcon === color && styles.colorOptionSelected
+                      ]}
+                      onPress={() => setEditedIcon(color)}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>ID do Caixa</Text>
+              <Text style={styles.infoValueSmall}>{vault.id}</Text>
+            </View>
+
+            <View style={styles.infoField}>
+              <Text style={styles.infoLabel}>Criado em</Text>
+              <Text style={styles.infoValue}>
+                {new Date(vault.createdAt).toLocaleDateString('pt-BR')}
+              </Text>
+            </View>
+          </View>
+
+          {/* Seção: Membros */}
+          <View style={styles.infoSection}>
+            <Text style={styles.infoSectionTitle}>Membros</Text>
+
+            {vault.members.map((member, index) => {
+              const isMe = member.publicKey.toString() === publicKey.toString();
+
+              return (
+                <View key={index} style={styles.memberItem}>
+                  <View style={styles.memberInfo}>
+                    <Text style={styles.memberWallet}>
+                      {formatWallet(member.publicKey.toString())}
+                      {isMe && <Text style={styles.memberMe}> (Você)</Text>}
+                    </Text>
+                    <View
+                      style={[
+                        styles.memberRoleBadge,
+                        { backgroundColor: getRoleColor(member.role) }
+                      ]}
+                    >
+                      <Text style={styles.memberRoleText}>
+                        {getRoleLabel(member.role)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {canEdit && !isMe && member.role !== 'FOUNDER' && (
+                    <TouchableOpacity
+                      style={styles.memberMenuButton}
+                      onPress={() => {
+                        Alert.alert(
+                          'Gerenciar Membro',
+                          formatWallet(member.publicKey.toString()),
+                          [
+                            { text: 'Cancelar', style: 'cancel' },
+                            {
+                              text: 'Alterar Cargo',
+                              onPress: () => {
+                                Alert.alert(
+                                  'Selecionar Cargo',
+                                  '',
+                                  [
+                                    {
+                                      text: 'Administrador',
+                                      onPress: () => handleChangeMemberRole(
+                                        member.publicKey.toString(),
+                                        'ADMIN'
+                                      )
+                                    },
+                                    {
+                                      text: 'Membro',
+                                      onPress: () => handleChangeMemberRole(
+                                        member.publicKey.toString(),
+                                        'MEMBER'
+                                      )
+                                    },
+                                    {
+                                      text: 'Convidado',
+                                      onPress: () => handleChangeMemberRole(
+                                        member.publicKey.toString(),
+                                        'GUEST'
+                                      )
+                                    },
+                                    {
+                                      text: 'Cancelar',
+                                      style: 'cancel'
+                                    }
+                                  ]
+                                );
+                              }
+                            },
+                            {
+                              text: 'Remover',
+                              style: 'destructive',
+                              onPress: () => handleRemoveMember(member.publicKey.toString())
+                            }
+                          ]
+                        );
+                      }}
+                    >
+                      <Text style={styles.memberMenuIcon}>⋮</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+
         </View>
-      </View>
+
+        {hasChanges && (
+          <TouchableOpacity
+            style={styles.floatingSaveButton}
+            onPress={handleSaveChanges}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.floatingSaveButtonText}>Salvar</Text>
+            )}
+          </TouchableOpacity>
+        )}
+      </ScrollView>
     );
   };
 

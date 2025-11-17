@@ -488,4 +488,184 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+
+// ========================================
+// ESTILOS DA TAB DE INFORMAÇÕES
+// ========================================
+
+infoContainer: {
+  padding: 16,
+},
+
+infoSection: {
+  backgroundColor: '#1F2937',
+  borderRadius: 12,
+  padding: 16,
+  marginBottom: 16,
+},
+
+infoSectionHeader: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 16,
+},
+
+infoSectionTitle: {
+  fontSize: 18,
+  fontWeight: '700',
+  color: '#FFFFFF',
+  marginBottom: 16,
+},
+
+editButton: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#AB9FF3',
+},
+
+cancelButton: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#EF4444',
+},
+
+infoField: {
+  marginBottom: 16,
+},
+
+infoLabel: {
+  fontSize: 12,
+  fontWeight: '600',
+  color: '#9CA3AF',
+  marginBottom: 6,
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+},
+
+infoValue: {
+  fontSize: 16,
+  fontWeight: '500',
+  color: '#FFFFFF',
+},
+
+infoValueSmall: {
+  fontSize: 12,
+  fontWeight: '400',
+  color: '#9CA3AF',
+  fontFamily: 'monospace',
+},
+
+infoInput: {
+  backgroundColor: '#374151',
+  borderRadius: 8,
+  padding: 12,
+  fontSize: 16,
+  color: '#FFFFFF',
+  borderWidth: 1,
+  borderColor: '#4B5563',
+},
+
+infoTextArea: {
+  minHeight: 80,
+  textAlignVertical: 'top',
+},
+
+// Seletor de Cores
+colorPicker: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 12,
+  marginTop: 8,
+},
+
+colorOption: {
+  width: 44,
+  height: 44,
+  borderRadius: 22,
+  borderWidth: 2,
+  borderColor: 'transparent',
+},
+
+colorOptionSelected: {
+  borderColor: '#FFFFFF',
+  borderWidth: 3,
+},
+
+// Lista de Membros
+memberItem: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  paddingVertical: 12,
+  borderBottomWidth: 1,
+  borderBottomColor: '#374151',
+},
+
+memberInfo: {
+  flex: 1,
+},
+
+memberWallet: {
+  fontSize: 14,
+  fontWeight: '600',
+  color: '#FFFFFF',
+  marginBottom: 6,
+  fontFamily: 'monospace',
+},
+
+memberMe: {
+  fontSize: 12,
+  fontWeight: '400',
+  color: '#AB9FF3',
+},
+
+memberRoleBadge: {
+  alignSelf: 'flex-start',
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderRadius: 12,
+},
+
+memberRoleText: {
+  fontSize: 11,
+  fontWeight: '700',
+  color: '#FFFFFF',
+  textTransform: 'uppercase',
+  letterSpacing: 0.5,
+},
+
+memberMenuButton: {
+  padding: 8,
+},
+
+memberMenuIcon: {
+  fontSize: 20,
+  color: '#9CA3AF',
+  fontWeight: '700',
+},
+
+// Botão Salvar Flutuante
+floatingSaveButton: {
+  position: 'absolute',
+  bottom: 24,
+  right: 24,
+  backgroundColor: '#AB9FF3',
+  paddingHorizontal: 24,
+  paddingVertical: 14,
+  borderRadius: 28,
+  elevation: 8,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.3,
+  shadowRadius: 8,
+  zIndex: 999,
+},
+
+floatingSaveButtonText: {
+  fontSize: 16,
+  fontWeight: '700',
+  color: '#FFFFFF',
+  letterSpacing: 0.5,
+},
 });

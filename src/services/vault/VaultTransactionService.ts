@@ -1,7 +1,6 @@
 // src/services/vault/VaultTransactionService.ts
 
-import { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { Keypair } from '@solana/web3.js';
+import { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, Keypair } from '@solana/web3.js';
 import { Buffer } from 'buffer';
 import PhantomService from '../phantom/PhantomService';
 import SolanaService from '../solana/SolanaService';
@@ -23,7 +22,7 @@ export class VaultTransactionService {
    * TEMPORÁRIO: Usar keypair derivado do ID
    * PRODUÇÃO: Usar PDA (Program Derived Address) com smart contract
    */
-  static generateVaultWallet(vaultId: string): PublicKey {
+  private static generateVaultWallet(vaultId: string): Keypair {
     try {
       console.log('Gerando wallet para vault:', vaultId);
 
@@ -32,7 +31,7 @@ export class VaultTransactionService {
       const keypair = Keypair.fromSeed(seed);
 
       console.log('Wallet do caixa gerada:', keypair.publicKey.toString());
-      return keypair.publicKey;
+      return keypair;
     } catch (error) {
       console.error('Erro ao gerar wallet do caixa:', error);
       throw error;
@@ -40,11 +39,19 @@ export class VaultTransactionService {
   }
 
   /**
+   * Obter PublicKey do caixa (para uso externo)
+   */
+  static getVaultPublicKey(vaultId: string): PublicKey {
+    const keypair = this.generateVaultWallet(vaultId);
+    return keypair.publicKey;
+  }
+
+  /**
    * Buscar saldo do caixa na blockchain
    */
   static async getVaultBalance(vaultId: string): Promise<number> {
     try {
-      const vaultWallet: Keypair = this.generateVaultWallet(vaultId);
+      const vaultWallet = this.getVaultPublicKey(vaultId);
       const balanceData = await this.solanaService.getBalance(vaultWallet);
 
       console.log(`Saldo do caixa ${vaultId}:`, balanceData.balance, 'SOL');
@@ -87,7 +94,7 @@ export class VaultTransactionService {
       }
 
       // 3. Gerar wallet do caixa
-      const vaultWallet = this.generateVaultWallet(vaultId);
+      const vaultWallet = this.getVaultPublicKey(vaultId);
       console.log('Wallet do caixa:', vaultWallet.toString());
 
       // 4. Criar transação
@@ -212,8 +219,8 @@ export class VaultTransactionService {
   }
 
   /**
- * Executar saque aprovado por votação
- */
+   * Executar saque aprovado por votação
+   */
   static async executeApprovedWithdraw(
     vaultId: string,
     recipientPublicKey: PublicKey,
@@ -224,7 +231,7 @@ export class VaultTransactionService {
       console.log('   Destinatário:', recipientPublicKey.toString());
       console.log('   Valor:', amount, 'SOL');
 
-      // Gerar wallet do caixa
+      // Gerar wallet do caixa (Keypair completo)
       const vaultWallet = this.generateVaultWallet(vaultId);
       console.log('   Caixa:', vaultWallet.publicKey.toString());
 
@@ -240,14 +247,13 @@ export class VaultTransactionService {
       }
 
       // Criar transação de transferência
-      const solanaService = SolanaService.getInstance();
-      const connection = solanaService.getConnection();
+      const connection = this.solanaService.getConnection();
 
       const transaction = new Transaction().add(
         SystemProgram.transfer({
           fromPubkey: vaultWallet.publicKey,
           toPubkey: recipientPublicKey,
-          lamports: amount * LAMPORTS_PER_SOL,
+          lamports: Math.floor(amount * LAMPORTS_PER_SOL),
         })
       );
 
@@ -269,7 +275,7 @@ export class VaultTransactionService {
         }
       );
 
-      console.log('⏳ Aguardando confirmação...');
+      console.log('Aguardando confirmação...');
       await connection.confirmTransaction(signature, 'confirmed');
 
       console.log('Saque realizado com sucesso!');
@@ -278,6 +284,16 @@ export class VaultTransactionService {
       // Atualizar saldo no Firebase
       const newBalance = await this.getVaultBalance(vaultId);
       await this.updateVaultBalance(vaultId, newBalance);
+
+      // Registrar transação no Firebase
+      await this.recordTransaction(vaultId, {
+        type: 'withdraw',
+        from: vaultWallet.publicKey.toString(),
+        to: recipientPublicKey.toString(),
+        amount,
+        signature,
+        timestamp: new Date().toISOString()
+      });
 
       return {
         success: true,
@@ -329,6 +345,25 @@ export class VaultTransactionService {
       console.log('Saldo atualizado no Firebase:', newBalance, 'SOL');
     } catch (error) {
       console.error('Erro ao atualizar saldo no Firebase:', error);
+    }
+  }
+
+  /**
+   * Atualizar saldo do caixa no Firebase (método público para uso externo)
+   */
+  private static async updateVaultBalance(vaultId: string, newBalance: number): Promise<void> {
+    try {
+      await firestore()
+        .collection('vaults')
+        .doc(vaultId)
+        .update({
+          balance: newBalance,
+          updatedAt: firestore.FieldValue.serverTimestamp(),
+        });
+
+      console.log('Saldo atualizado no Firebase:', newBalance, 'SOL');
+    } catch (error) {
+      console.error('Erro ao atualizar saldo:', error);
     }
   }
 
